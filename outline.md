@@ -1,10 +1,14 @@
 ## Outline for the Neutral-METE Model Comparison Project
 ### Introductory paragraph
- - It is well-known that macroecological patterns are universally observed across ecological systems with otherwise different characteristics. 
- - Less well-known is the reason why.
- - While multiple explanations exist for each pattern, it is often impossible to distinguish between models arising from different mechanisms yet making similar or even identical predictions for a single pattern.
- - In the past decade, ecology is moving towards unifying multiple facets of community structure under a single theoretical framework.
- - Such unified theories not only allows predictions to be made with relatively few inputs, but also allows for stronger tests to be conducted by simultaneous evaluations of multiple predictions.
+
+- Many ecological patterns take similar forms across a diverse array of ecosystems and taxonomic groups.
+- There are two general explanations for why this might occur.
+    1. The patterns represent emergent statistical phenomena, where a broad array of specific processes are expected to give rise to the same pattern.
+    2. Across the diverse array of ecological systems these patterns are governed by similar fundamental processes and therefore take similar forms.
+- One of the major challenges in evaluating the relative importance of these alternative explanations is that it is often impossible to distinguish between models making similar (or even identical) predictions the a pattern.
+- We take advantage of the fact that ecological theories increasingly make predictions for multiple patterns simultaneously to conduct a strong test of the relative fits of a model based on biological processes and one based on emergent patterns.
+- By comparing the models using a joint distribution that captures the information for a suite of four patterns, we are able to conduct this strong test using a single direct comparison incorporating information across patterns.
+
 
 ### Briefly recap the concept of the two models
  - Among the existing unified theories of ecology, neutral theory and METE are two most comprehensive ones, which attempt to capture patterns of biodiversity as well as patterns of biomass / energy flux. 
@@ -22,11 +26,11 @@ The patterns arise from interactions of biological processes of birth, death, an
  - The neutral theory had higher likelihood than METE for P(N, M) in all but one community.
  - A closer examination shows that the two models made the same prediction for the SAD, and slightly different but equally good predictions for the size spectrum (*this statement is yet to be validated*). 
 The discrepancy lies in their predictions for assigning individuals of different sizes to species.
-	 - METE predicts a strong negative correlation between species abundance and average body size, which has previously been shown to be a major problem of the theory.
-	 - On the other hand, neutral theory predics that individuals in each species is a random sample from the size spectrum, making average body size independent from species abundance.
+	 - METE predicts a strong negative correlation between species abundance and average body size, which leads to deviations from the predictions
+	 - In contrast, neutral theory predicts that individuals in each species are random samples from the size spectrum, making average body size independent from species abundance.
 	 - This prediction is in better agreement with empirical patterns in forest communities, though in almost all communities there are a minority of species that deviate from the expectation of independence.
  - Rooted in the Maximum Entropy Principle (EM), METE yields the least biased prediction for the patterns given the input constraints and its specific configuration.
- - While other configurations with the same set of constraints exist under the EM framework, none of them can compete with METE or neutral theory in their predictions.
+ - While other configurations with the same set of constraints exist under the EM framework, none of them provide better fits to empirical data than  METE.
  - The fact that the neutral theory outcompetes METE (and the other EM models as far as we know) suggests that the biological processes in the neutral theory indeed provide meaningful information that cannot be fully summarized by the current set of constraints.
  - While the two models have made an ambitious attempt to bridge the gap between patterns of biodiversity and patterns of energy use, they are both in their primitive stage with high potential for future development.
 	 - Additional/different constraints can be incorporated into METE. 
