@@ -1,12 +1,12 @@
-## Outline for the Neutral-METE Model Comparison Project ##
-### Introductory paragraph ###
+## Outline for the Neutral-METE Model Comparison Project
+### Introductory paragraph
  - It is well-known that macroecological patterns are universally observed across ecological systems with otherwise different characteristics. 
  - Less well-known is the reason why.
  - While multiple explanations exist for each pattern, it is often impossible to distinguish between models arising from different mechanisms yet making similar or even identical predictions for a single pattern.
  - In the past decade, ecology is moving towards unifying multiple facets of community structure under a single theoretical framework.
  - Such unified theories not only allows predictions to be made with relatively few inputs, but also allows for stronger tests to be conducted by simultaneous evaluations of multiple predictions.
 
-### Briefly recap the concept of the two models ###
+### Briefly recap the concept of the two models
  - Among the existing unified theories of ecology, neutral theory and METE are two most comprehensive ones, which attempt to capture patterns of biodiversity as well as patterns of biomass / energy flux. 
  - While the two take the same quantities as inputs to make predictions for the same set of patterns, they represent two different views on the mechanism behind macroecological patterns.
 	 - Neutral theory (*we really need a concise and fancy name for the neutral size with size structure... SNBT maybe?) extends Hubbell's neutral theory of biodiversity to incorporate size structure.
@@ -15,7 +15,7 @@ The patterns arise from interactions of biological processes of birth, death, an
  - Previous evaluations of METE have yielded mixed results, while the neutral theory has never been confronted with empirical data.
  - Here we provide the first empirical evaluation of the neutral theory, and by comparing the performance of the two models on the same set of data, attempt to answer the question if the process-based or the constraint-based approach is more appropriate in characterizing community structure in their current state.
 
-### Results and interpretations ###
+### Results and interpretations
  - We compiled data for 60 forest plots that are over 1-ha in size, with X species and Y individuals in total.
  - Performance of the neutral theory and METE was evaluated as their ability to simultaneously capture the distribution of abundance and biomass among species, as well as their potential interactions.
  - This was measured as the likelihood of the models for P(N, M), the joint probability that a species has abundance N and biomass M.
