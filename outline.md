@@ -18,7 +18,7 @@
 ### Briefly recap the concept of the two models
  - Among the existing unified theories of ecology, neutral theory and METE are two most comprehensive ones, which attempt to capture patterns of biodiversity as well as patterns of biomass / energy flux. 
  - While the two take the same quantities as inputs to make predictions for the same set of patterns, they represent two different views on the mechanism behind macroecological patterns.
-	 - Neutral theory (*we really need a concise and fancy name for the neutral size with size structure... SNBT maybe?) extends Hubbell's neutral theory of biodiversity to incorporate size structure.
+	 - Size-structured Neutral theory (SSNT?) (*we really need a concise and fancy name for the neutral size with size structure... SNBT maybe?) extends Hubbell's neutral theory of biodiversity to incorporate size structure.
 The patterns arise from interactions of biological processes of birth, death, and growth.
 	 - In METE, the patterns arise as emergent statistical properties, which represent our best (least-biased) guess of the system given the set of constraints.
  - Previous evaluations of METE have yielded mixed results, while the neutral theory has never been confronted with empirical data.
