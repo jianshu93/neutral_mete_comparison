@@ -1,12 +1,17 @@
 ## Outline for the Neutral-METE Model Comparison Project
-### Introductory paragraph
+### Introductory paragraph (overview and motivation for problem to be solved)
 
 - Many ecological patterns take similar forms across a diverse array of ecosystems and taxonomic groups.
 - There are two general explanations for why this might occur.
     1. The patterns represent emergent statistical phenomena, where a broad array of specific processes are expected to give rise to the same pattern.
     2. Across the diverse array of ecological systems these patterns are governed by similar fundamental processes and therefore take similar forms.
-- One of the major challenges in evaluating the relative importance of these alternative explanations is that it is often impossible to distinguish between models making similar (or even identical) predictions the a pattern.
-- We take advantage of the fact that ecological theories increasingly make predictions for multiple patterns simultaneously to conduct a strong test of the relative fits of a model based on biological processes and one based on emergent patterns.
+- Distinguishing to what extent patterns are inevitably universal across ecological systems, vs to what extent they depend on shared underlying processes, is important because of...? 
+
+### Second Introductory paragraph (more specific statement of problem and identifying solution)
+- One of the major challenges in evaluating the relative importance of these alternative explanations is that the more universal an observed pattern is, the more likely it is that different modeling approaches make similar (or even identical) predictions for the pattern.
+- This means that it is difficult to distinguish between the two explanations above by just comparing their predictions for universal patterns 
+- We identify a solution to this problem.  We take two distinct modeling approaches which make the same prediction for a single common ecological pattern. We then unwind these models one step further, and identify additional patterns that can be predicted by these models, and where these additional predictions diverge
+- We take advantage of the fact that ecological theories can increasingly make predictions for these multiple patterns simultaneously to conduct a strong test of the relative fits of a model based on biological processes and one based on emergent patterns.
 - By comparing the models using a joint distribution that captures the information for a suite of four patterns, we are able to conduct this strong test using a single direct comparison incorporating information across patterns.
 
 
@@ -31,7 +36,7 @@ The discrepancy lies in their predictions for assigning individuals of different
 	 - This prediction is in better agreement with empirical patterns in forest communities, though in almost all communities there are a minority of species that deviate from the expectation of independence.
  - Rooted in the Maximum Entropy Principle (EM), METE yields the least biased prediction for the patterns given the input constraints and its specific configuration.
  - While other configurations with the same set of constraints exist under the EM framework, none of them provide better fits to empirical data than  METE.
- - The fact that the neutral theory outcompetes METE (and the other EM models as far as we know) suggests that the biological processes in the neutral theory indeed provide meaningful information that cannot be fully summarized by the current set of constraints.
+ - The fact that the neutral theory outcompetes METE (and the other EM models as far as we know) suggests that the biological processes in the neutral theory indeed provide meaningful information that cannot be fully summarized by the current set of constraints. I THINK THIS IS GOOD AND WE SHOULD HIGHLIGHT EVEN MORE
  - While the two models have made an ambitious attempt to bridge the gap between patterns of biodiversity and patterns of energy use, they are both in their primitive stage with high potential for future development.
 	 - Additional/different constraints can be incorporated into METE. 
 	 - The simplified assumption of full neutrality among individuals in the neutral model can be modified to more accurately reflect the relationship between demographic parameters and body size.
