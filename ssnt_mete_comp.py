@@ -301,7 +301,7 @@ def plot_joint_ind(dat, model, ax = 'None', cbar = False):
         fig = plt.figure(figsize = (3.5, 3.5))
         ax = plt.subplot(111)
     heatmap = plt.imshow(log_p_trans, interpolation = 'bilinear', cmap = 'YlOrRd', aspect = 'auto', origin = 'lower', \
-               extent=[0.5 * min(sp_abd_list), 1.5 * max(sp_abd_list), 0.5 * min(sp_m_list), 1.5 * max(sp_m_list)])
+               extent=[0.5 * min(sp_abd_list), 1.5 * max(sp_abd_list), 0.5 * min(dbh), 1.5 * max(dbh)])
     # Scatter plot of empirical data
     ind_abd_list = []
     for ind in dat:
