@@ -128,6 +128,27 @@ def lik_ssnt_sp(n, epsilon, S, N, E, loglik = True):
           / np.factorial(n) * (-1 / log(1 - b_over_g / d_over_g))
         return L
 
+def lik_ssnt_ind(n, epsilon, S, N, d_over_g):
+    """Likelihood of an individual having size epsilon and belongs to a species with abundance n"""
+    
+def lik_mete_ind(n, epsilon, S, N, E, unit = 'mr', loglik = True):
+    """Likelihood of an individual having size epsilon and belongs to a species with 
+    
+    abundance N in METE. Equivalent to R(n, epsilon). Input "unit" can take value 
+    "mr" or "diameter", which controls the unit of size in the output.
+    
+    """
+    psi = mete_distributions.psi_epsilon(S, N, E)
+    Z_inv = psi.norm_factor * N / S
+    lambda2 = psi.lambda2
+    lambda1 = psi.beta - lambda2
+    if loglik: 
+        if unit == 'mr': return np.log(Z_inv) - lambda1 * n - lambda2 * n * epsilon
+        else: return np.log(Z_inv) - lambda1 * n - lambda2 * n * (epsilon ** 2) + np.log(2) + np.log(epsilon)
+    else: 
+        if unit == 'mr': return Z_inv * np.exp(-lambda1 * n) * np.exp(-lambda2 * n * epsilon)
+        else: return Z_inv * np.exp(-lambda1 * n) * np.exp(-lambda2 * n * (epsilon ** 2)) * 2 * epsilon
+    
 def get_ssnt_obs_pred_isd(raw_data, dataset_name, model = 'original', data_dir = './out_files/', cutoff = 9):
     """Obtain the observed dbh**2 and the values predicted by SSNT and write to file.
     
