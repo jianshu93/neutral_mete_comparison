@@ -273,28 +273,28 @@ def plot_joint_ind(dat, model, ax = 'None', cbar = False):
     and empirical data points as scatter on top.
     
     Inputs:
-    dat - data array with 3 columns (site, sp, and m)
+    dat - data array with 3 columns (site, sp, and diameter)
     model - "METE" or "SSNT"
     ax - whether the plot is part of an existing figure
     """
     S = len(np.unique(dat['sp']))
     N = len(dat)
-    E = sum(dat[dat.dtype.names[2]])
+    dbh = dat['dbh'] / min(dat['dbh'])
     sp_abd_list = []
     sp_m_list = []
     for sp in np.unique(dat['sp']):
         dat_sp = dat[dat['sp'] == sp]
         sp_abd_list.append(len(dat_sp))
-        sp_m_list.append(sum(dat_sp[dat.dtype.names[2]]))
     res = 200 # resolution
     seq_abd = np.logspace(np.log10(min(sp_abd_list)), np.log10(max(sp_abd_list)), num = res)
-    seq_m = np.logspace(np.log10(min(sp_m_list)), np.log10(max(sp_m_list)), num = res)
-    
-    if model == 'SSNT':
-            log_p = np.array([[lik_ssnt_sp(int(round(abd)), m, S, N, E) / S for abd in seq_abd] for m in seq_m])
+    seq_d = np.logspace(np.log10(min(dbh)), np.log10(max(dbh)), num = res)
+    if model == 'SSNT': 
+        d_over_g = N / (sum(dbh) - N)
+        log_p = np.array([[lik_ssnt_ind(int(round(abd)), d, S, N, d_over_g) / S for abd in seq_abd] for d in seq_d])
     else:
-        log_p = np.array([[lik_mete_sp(int(round(abd)), m, S, N, E) / S for abd in seq_abd] for m in seq_m])
-    
+        E = sum(dbh**2)
+        log_p = np.array([[lik_mete_ind(int(round(abd)), d, S, N, E, unit = 'diameter') / S for abd in seq_abd] for d in seq_d])
+        
     # Transforming log_p for better visualization
     log_p_trans = [-np.log(-x) for x in log_p]
     if not ax:
@@ -303,13 +303,18 @@ def plot_joint_ind(dat, model, ax = 'None', cbar = False):
     heatmap = plt.imshow(log_p_trans, interpolation = 'bilinear', cmap = 'YlOrRd', aspect = 'auto', origin = 'lower', \
                extent=[0.5 * min(sp_abd_list), 1.5 * max(sp_abd_list), 0.5 * min(sp_m_list), 1.5 * max(sp_m_list)])
     # Scatter plot of empirical data
-    plt.scatter(sp_abd_list, sp_m_list, s = 8, c = 'black')
+    ind_abd_list = []
+    for ind in dat:
+        sp_ind = ind['sp']
+        n_sp = len(dat[dat['sp'] == sp_ind])
+        ind_abd_list.append(n_sp)
+    plt.scatter(ind_abd_list, dbh, s = 8, c = 'black')
     # Set up both axes on log scale
     plt.xscale('log')
     plt.yscale('log')
     ax.tick_params(axis = 'both', which = 'major', labelsize = 6)
     plt.xlabel('Abundance', fontsize = 8)
-    plt.ylabel('Total metabolic rate', fontsize = 8)    
+    plt.ylabel('Diameter', fontsize = 8)    
     if cbar: 
         cbar_create = plt.colorbar(heatmap, ticks = [np.min(log_p_trans), np.max(log_p_trans)])
         cbar_create.ax.set_yticklabels(['low', 'high'])
