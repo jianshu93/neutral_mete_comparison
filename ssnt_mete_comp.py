@@ -153,7 +153,31 @@ def lik_mete_ind(n, epsilon, S, N, E, unit = 'mr', loglik = True):
     else: 
         if unit == 'mr': return Z_inv * np.exp(-lambda1 * n) * np.exp(-lambda2 * n * epsilon)
         else: return Z_inv * np.exp(-lambda1 * n) * np.exp(-lambda2 * n * (epsilon ** 2)) * 2 * epsilon
-    
+
+def get_lik_ind_ssnt_mete(dat_list, in_dir = './data/', out_dir = './out_files/', cutoff = 9):
+    """Calculate the log-likelihood of the joint P(N, m) for SSNT and METE"""
+    for dat in dat_list:
+        dat_study = wk.import_raw_data(in_dir + dat + '.csv')
+        for site in np.unique(dat_study['site']):
+            dat_site = dat_study[dat_study['site'] == site]
+            S = len(np.unique(dat_site['sp']))
+            if S > cutoff:
+                N = len(dat_site)
+                dbh = dat_site['dbh']
+                E = sum((dbh / min(dbh)) ** 2)
+                sum_D = sum(dbh / min(dbh))
+                sum_l_ssnt = 0
+                sum_l_mete = 0
+                d_over_g = N / (sum_D - N)
+                for i, dbh in enumerate(dbh):
+                    sp_ind = dat_site['sp'][i]
+                    abd_ind = len(dat_site[dat_site['sp'] == sp_ind])
+                    sum_l_ssnt += lik_ssnt_ind(abd_ind, dbh, S, N, d_over_g)
+                    sum_l_mete += lik_mete_ind(abd_ind, dbh, S, N, E, unit = 'diameter')
+                out = open(out_dir + 'ind_lik_comp.txt', 'a')
+                print>>out, dat, site, str(sum_l_mete / S), str(sum_l_ssnt / S)
+                out.close()
+                
 def get_ssnt_obs_pred_isd(raw_data, dataset_name, model = 'original', data_dir = './out_files/', cutoff = 9):
     """Obtain the observed dbh**2 and the values predicted by SSNT and write to file.
     
