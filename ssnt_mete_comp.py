@@ -128,8 +128,13 @@ def lik_ssnt_sp(n, epsilon, S, N, E, loglik = True):
           / np.factorial(n) * (-1 / log(1 - b_over_g / d_over_g))
         return L
 
-def lik_ssnt_ind(n, epsilon, S, N, d_over_g):
+def lik_ssnt_ind(n, epsilon, S, N, d_over_g, loglik = True):
     """Likelihood of an individual having size epsilon and belongs to a species with abundance n"""
+    b_over_d = 1 / np.exp(mete.get_beta(S, N, version = 'untruncated'))
+    sad = stats.logser.pmf(n, b_over_d)
+    isd = ssnt_isd_bounded(d_over_g)
+    if loglik: return np.log(sad) + np.log(d_over_g) - d_over_g * (epsilon - 1)
+    else: return sad * isd.pdf(epsilon)
     
 def lik_mete_ind(n, epsilon, S, N, E, unit = 'mr', loglik = True):
     """Likelihood of an individual having size epsilon and belongs to a species with 
