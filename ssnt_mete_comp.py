@@ -30,6 +30,25 @@ class ssnt_isd:
     def ppf(self, q):
         return -self.scale * np.log(1 - np.array(q))
 
+class ssnt_isd_bounded:
+    """This is the ISD of SSNT with an lower bound at 1, 
+    
+    consistent with METE.
+    Here the parameter of the lower-truncated exponential is d/g = N / (E - N).
+    
+    """ 
+    def __init__(self, d_over_g):
+        self.scale = 1 / d_over_g
+        
+    def pdf(self, x):
+        return stats.expon.pdf(x, scale = self.scale, loc = 1)
+    
+    def cdf(self, x):
+        return stats.expon.cdf(x, scale = self.scale, loc = 1)
+    
+    def ppf(self, q):
+        return -self.scale * np.log(1 - np.array(q)) + 1
+
 class ssnt_isd_transform():
     """This is the ISD predicted by SSNT when b & d are constant
     
@@ -109,22 +128,26 @@ def lik_ssnt_sp(n, epsilon, S, N, E, loglik = True):
           / np.factorial(n) * (-1 / log(1 - b_over_g / d_over_g))
         return L
 
-def get_ssnt_obs_pred_isd(raw_data, dataset_name, scaling = False, data_dir = './out_files/', cutoff = 9):
+def get_ssnt_obs_pred_isd(raw_data, dataset_name, model = 'original', data_dir = './out_files/', cutoff = 9):
     """Obtain the observed dbh**2 and the values predicted by SSNT and write to file.
     
     Input:
     raw_data - data in the same format as obtained by wk.import_raw_data(), with 
         three columns site, sp, and dbh.
     dataset_name - name of the dataset for raw_data.
-    scaling - whether the analyhsis is conducted with ssnt_isd() or ssnt_isd_transform().
+    model - whether the original model (ssnt_isd), the scaled model (ssnt_isd_transform), or 
+        the lower truncated model (ssnt_isd_bounded) is adopted
     data_dir - directory for output file.
     cutoff - minimal number of species for a site to be included.
     
     """
     usites = np.sort(list(set(raw_data["site"])))
-    if scaling: 
+    if model == 'original':
+        f1_write = open(data_dir + dataset_name + '_obs_pred_isd_ssnt.csv', 'wb')
+    elif model == 'transform':
         f1_write = open(data_dir + dataset_name + '_obs_pred_isd_ssnt_transform.csv', 'wb')
-    else: f1_write = open(data_dir + dataset_name + '_obs_pred_isd_ssnt.csv', 'wb')
+    elif model == 'bounded':
+        f1_write = open(data_dir + dataset_name + '_obs_pred_isd_ssnt_bounded.csv', 'wb')
     f1 = csv.writer(f1_write)
     
     for site in usites:
@@ -136,12 +159,16 @@ def get_ssnt_obs_pred_isd(raw_data, dataset_name, scaling = False, data_dir = '.
         if S0 > cutoff:
             scaled_rank = [(x + 0.5) / len(dbh_scale) for x in range(len(dbh_scale))]
             dbh2_obs = sorted(dbh_scale ** 2)
-            if scaling: 
+            if model == 'original':
+                d_over_g = N0 / sum(dbh2_obs)
+                isd_dist = ssnt_isd(d_over_g)                
+            elif model == 'transform': 
                 d_over_g = N0 / sum(dbh_scale ** (2/3))
                 isd_dist = ssnt_isd_transform(d_over_g)
-            else:
-                d_over_g = N0 / sum(dbh2_obs)
-                isd_dist = ssnt_isd(d_over_g)
+            elif model == 'bounded':
+                d_over_g = N0 / (sum(dbh_scale) - N0) # Note here the analysis is on D, not D^2, even though the output var is still named dbh2_pred
+                dbh2_obs = sorted(dbh_scale)
+                isd_dist = ssnt_isd_bounded(d_over_g)
             dbh2_pred = isd_dist.ppf(scaled_rank)
             
             results = np.zeros((len(dbh2_obs), ), dtype = ('S15, f8, f8'))
@@ -150,9 +177,72 @@ def get_ssnt_obs_pred_isd(raw_data, dataset_name, scaling = False, data_dir = '.
             results['f2'] = dbh2_pred
             f1.writerows(results)
     f1_write.close()
+    
+def plot_obs_pred_isd(datasets, model, data_dir = './out_files/', ax = None, radius = 2):
+    """Plot the observed vs predicted ISD across multiple datasets"""
+    if model == 'METE':
+        isd_sites, isd_obs, isd_pred = wk.get_obs_pred_from_file(datasets, data_dir, '_obs_pred_isd_dbh2.csv')
+    elif model == 'SSNT':
+        isd_sites, isd_obs, isd_pred = wk.get_obs_pred_from_file(datasets, data_dir, '_obs_pred_isd_ssnt.csv')
+    else: isd_sites, isd_obs, isd_pred = wk.get_obs_pred_from_file(datasets, data_dir, '_obs_pred_isd_ssnt_transform.csv')
+    if not ax:
+        fig = plt.figure(figsize = (3.5, 3.5))
+        ax = plt.subplot(111)
+    wk.plot_obs_pred(isd_obs, isd_pred, radius, 1, ax = ax)
+    ax.set_xlabel('Predicted DBH^2', labelpad = 4, size = 8)
+    ax.set_ylabel('Observed DBH^2', labelpad = 4, size = 8)
+    return ax
  
 def plot_joint(dat, model, ax = 'None', cbar = False):
     """Plot the density of the predicted joint distribution P(N, M) as heatmap
+    
+    and empirical data points as scatter on top.
+    
+    Inputs:
+    dat - data array with 3 columns (site, sp, and m)
+    model - "METE" or "SSNT"
+    ax - whether the plot is part of an existing figure
+    """
+    S = len(np.unique(dat['sp']))
+    N = len(dat)
+    E = sum(dat[dat.dtype.names[2]])
+    sp_abd_list = []
+    sp_m_list = []
+    for sp in np.unique(dat['sp']):
+        dat_sp = dat[dat['sp'] == sp]
+        sp_abd_list.append(len(dat_sp))
+        sp_m_list.append(sum(dat_sp[dat.dtype.names[2]]))
+    res = 200 # resolution
+    seq_abd = np.logspace(np.log10(min(sp_abd_list)), np.log10(max(sp_abd_list)), num = res)
+    seq_m = np.logspace(np.log10(min(sp_m_list)), np.log10(max(sp_m_list)), num = res)
+    
+    if model == 'SSNT':
+            log_p = np.array([[lik_ssnt_sp(int(round(abd)), m, S, N, E) / S for abd in seq_abd] for m in seq_m])
+    else:
+        log_p = np.array([[lik_mete_sp(int(round(abd)), m, S, N, E) / S for abd in seq_abd] for m in seq_m])
+    
+    # Transforming log_p for better visualization
+    log_p_trans = [-np.log(-x) for x in log_p]
+    if not ax:
+        fig = plt.figure(figsize = (3.5, 3.5))
+        ax = plt.subplot(111)
+    heatmap = plt.imshow(log_p_trans, interpolation = 'bilinear', cmap = 'YlOrRd', aspect = 'auto', origin = 'lower', \
+               extent=[0.5 * min(sp_abd_list), 1.5 * max(sp_abd_list), 0.5 * min(sp_m_list), 1.5 * max(sp_m_list)])
+    # Scatter plot of empirical data
+    plt.scatter(sp_abd_list, sp_m_list, s = 8, c = 'black')
+    # Set up both axes on log scale
+    plt.xscale('log')
+    plt.yscale('log')
+    ax.tick_params(axis = 'both', which = 'major', labelsize = 6)
+    plt.xlabel('Abundance', fontsize = 8)
+    plt.ylabel('Total metabolic rate', fontsize = 8)    
+    if cbar: 
+        cbar_create = plt.colorbar(heatmap, ticks = [np.min(log_p_trans), np.max(log_p_trans)])
+        cbar_create.ax.set_yticklabels(['low', 'high'])
+    return ax
+
+def plot_joint_ind(dat, model, ax = 'None', cbar = False):
+    """Plot the density of the predicted joint distribution P(N, m) (R(n, epsilon) in METE) as heatmap
     
     and empirical data points as scatter on top.
     
