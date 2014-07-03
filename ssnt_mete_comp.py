@@ -310,14 +310,14 @@ def plot_joint_ind(dat, model, ax = 'None', cbar = False):
         dat_sp = dat[dat['sp'] == sp]
         sp_abd_list.append(len(dat_sp))
     res = 200 # resolution
-    seq_abd = np.logspace(np.log10(min(sp_abd_list)), np.log10(max(sp_abd_list)), num = res)
-    seq_d = np.logspace(np.log10(min(dbh)), np.log10(max(dbh)), num = res)
+    seq_abd = np.round(np.logspace(np.log10(0.9 * min(sp_abd_list)), np.log10(1.5 * max(sp_abd_list)), num = res))
+    seq_d = np.logspace(np.log10(0.5 * min(dbh)), np.log10(1.5 * max(dbh)), num = res)
     if model == 'SSNT': 
         d_over_g = N / (sum(dbh) - N)
-        log_p = np.array([[lik_ssnt_ind(int(round(abd)), d, S, N, d_over_g) / S for abd in seq_abd] for d in seq_d])
+        log_p = np.array([[lik_ssnt_ind(abd, d, S, N, d_over_g) / S for abd in seq_abd] for d in seq_d])
     else:
         E = sum(dbh**2)
-        log_p = np.array([[lik_mete_ind(int(round(abd)), d, S, N, E, unit = 'diameter') / S for abd in seq_abd] for d in seq_d])
+        log_p = np.array([[lik_mete_ind(abd, d, S, N, E, unit = 'diameter') / S for abd in seq_abd] for d in seq_d])
         
     # Transforming log_p for better visualization
     log_p_trans = [-np.log(-x) for x in log_p]
@@ -325,7 +325,7 @@ def plot_joint_ind(dat, model, ax = 'None', cbar = False):
         fig = plt.figure(figsize = (3.5, 3.5))
         ax = plt.subplot(111)
     heatmap = plt.imshow(log_p_trans, interpolation = 'bilinear', cmap = 'YlOrRd', aspect = 'auto', origin = 'lower', \
-               extent=[0.5 * min(sp_abd_list), 1.5 * max(sp_abd_list), 0.5 * min(dbh), 1.5 * max(dbh)])
+               extent=[0.9 * min(sp_abd_list), 1.5 * max(sp_abd_list), 0.5 * min(dbh), 1.5 * max(dbh)])
     # Scatter plot of empirical data
     ind_abd_list = []
     for ind in dat:
