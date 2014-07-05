@@ -1,4 +1,7 @@
 from __future__ import division
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import csv
 import numpy as np
 from scipy import stats
@@ -40,6 +43,12 @@ class ssnt_isd_bounded():
     def ppf(self, q):
         return (1 - np.log(1 - q) / self.par) ** (1 / self.alpha)
 
+def import_likelihood_data(file_name, file_dir = './out_files/'):
+    """Import file with likelihood for METE, SSNT, and transformed SSNT"""
+    data = np.genfromtxt(file_dir + file_name, dtype = 'S15, S15, f15, f15, f15', 
+                         names = ['study', 'site', 'METE', 'SSNT', 'SSNT_transform'], delimiter = ' ')
+    return data
+    
 def lik_sp_abd_dbh_ssnt(sad_par, isd_dist, n, dbh_list, log = True):
     """Probability of a species having abundance n and its individuals having dbh [d1, d2, ..., d_n] in SSNT
     
@@ -191,4 +200,30 @@ def plot_obs_pred_diameter(datasets, in_file_name, data_dir = './out_files/', ax
     ax.set_xlabel('Predicted diameter', labelpad = 4, size = 8)
     ax.set_ylabel('Observed diameter', labelpad = 4, size = 8)
     return ax
-                
+
+def plot_likelihood_comp(lik_1, lik_2, xlabel, ylabel, ax = None):
+    """Plot the likelihood two models against each other.
+    
+    lik_1 and lik_2 are two lists/arrays of the same length, each 
+    representing likelihood in each community for one model.
+    
+    """
+    if not ax:
+        fig = plt.figure(figsize = (3.5, 3.5))
+        ax = plt.subplot(111)
+    min_val, max_val = min(list(lik_1) + list(lik_2)), max(list(lik_1) + list(lik_2))
+    if min_val < 0: axis_min = 1.1 * min_val
+    else: axis_min = 0.9 * min_val
+    if max_val < 0: axis_max = 0.9 * max_val
+    else: axis_max= 1.1 * max_val
+    plt.scatter(lik_1, lik_2, c = '#787878', edgecolors='none')
+    plt.plot([axis_min, axis_max], [axis_min, axis_max], 'k-')     
+    plt.xlim(axis_min, axis_max)
+    plt.ylim(axis_min, axis_max)
+    ax.tick_params(axis = 'both', which = 'major', labelsize = 6)
+    ax.set_xlabel(xlabel, labelpad = 4, size = 8)
+    ax.set_ylabel(ylabel, labelpad = 4, size = 8)
+    num_above_line = len([i for i in range(len(lik_1)) if lik_1[i] < lik_2[i]])
+    plt.annotate('Above the line: ' + str(num_above_line) + '/' + str(len(lik_1)), xy = (0.05, 0.85), 
+                 xycoords = 'axes fraction', fontsize = 7)
+    return ax
