@@ -85,6 +85,43 @@ def lik_sp_abd_dbh_mete(sad_par, sad_upper, iisd_dist, n, dbh_list, log = True):
         for p_ind in p_dbh_log: p_iisd *= np.exp(p_ind)
         return np.exp(p_sad_log) * p_iisd
     
+def get_ssnt_obs_pred_sad(raw_data, dataset_name, out_dir = './out_files/', cutoff = 9):
+    """Write the observed and predicted RAD to file. Note that the predicted form of the SAD
+    
+    (untruncated logseries) does not change with scaling of diameters.
+    Inputs:
+    raw_data - data in the same format as obtained by wk.import_raw_data(), with
+        three columsn site, sp, and dbh.
+    dataset_name - name of the dataet for raw_data.
+    out_dir - directory for output file.
+    cutoff - minimal number of species for a site to be included.
+    
+    """
+    usites = np.sort(list(set(raw_data["site"])))
+    f1_write = open(out_dir + dataset_name + '_obs_pred_rad_ssnt.csv', 'wb')
+    f1 = csv.writer(f1_write)
+    
+    for i in range(0, len(usites)):
+        subsites = raw_data["site"][raw_data["site"] == usites[i]]        
+        subsp = raw_data["sp"][raw_data["site"] == usites[i]]
+        N = len(subsp)
+        S = len(set(subsp))
+        subab = []
+        for sp in set(subsp):
+            subab.append(len(subsp[subsp == sp]))
+        if S > cutoff:
+            # Generate predicted values and p (e ** -beta) based on METE:
+            mete_pred = mete.get_mete_rad(int(S), int(N), version = 'untruncated')
+            pred = np.array(mete_pred[0])
+            obsab = np.sort(subab)[::-1]
+            #save results to a csv file:
+            results = np.zeros((len(obsab), ), dtype = ('S15, i8, i8'))
+            results['f0'] = np.array([usites[i]] * len(obsab))
+            results['f1'] = obsab
+            results['f2'] = pred
+            f1.writerows(results)
+    f1_write.close()
+    
 def get_ssnt_obs_pred_isd(raw_data, dataset_name, alpha, out_dir = './out_files/', cutoff = 9):
         """Write the observed (with rescaling) and predicted dbh to file.
         
@@ -227,3 +264,55 @@ def plot_likelihood_comp(lik_1, lik_2, xlabel, ylabel, ax = None):
     plt.annotate('Above the line: ' + str(num_above_line) + '/' + str(len(lik_1)), xy = (0.05, 0.85), 
                  xycoords = 'axes fraction', fontsize = 7)
     return ax
+
+def get_sample_stats_sad_ssnt(obs, pred, p):
+    """The SSNT version of get_sample_stats_sad()"""
+    dat_rsquare = mtools.obs_pred_rsquare(np.log10(obs), np.log10(pred))
+    dat_loglik = sum(np.log([stats.logser.pmf(x, p) for x in obs]))
+    emp_cdf = macroecotools.get_emp_cdf(obs)
+    dat_ks = max(abs(emp_cdf - np.array([stats.logser.cdf(x, p) for x in obs])))
+    return dat_rsquare, dat_loglik, dat_ks
+
+def bootstrap_SAD_SSNT(dat_name, cutoff = 9, Niter = 500):
+    """Compare the goodness of fit of the empirical SAD to 
+    
+    that of the boostrapped samples from the proposed SSNT distribution.
+    Note that both versions of the SSNT predict the same form for the SAD and 
+    thus are not distinguished here.
+    Inputs:
+    dat_name - name of study
+    cutoff - minimum number of species required to run - 1
+    Niter - number of bootstrap samples
+    """
+    dat = import_raw_data('./data/' + dat_name + '.csv')
+    site_list = np.unique(dat['site'])
+    dat_obs_pred = import_obs_pred_data('./out_files/' + dat_name + '_obs_pred_rad_ssnt.csv')
+        
+    for site in site_list:
+        out_list_rsquare, out_list_loglik, out_list_ks = [dat_name, site], [dat_name, site], [dat_name, site]
+        dat_site = dat[dat['site'] == site]
+        S_list = set(dat_site['sp'])
+        S0 = len(S_list)
+        if S0 > cutoff:
+            N0 = len(dat_site)
+            beta = get_beta(S0, N0, version = 'untruncated')
+            
+            dat_site_obs_pred = dat_obs_pred[dat_obs_pred['site'] == site]
+            dat_site_obs = dat_site_obs_pred['obs']
+            dat_site_pred = dat_site_obs_pred['pred']
+            
+            emp_rsquare, emp_loglik, emp_ks = get_sample_stats_sad(dat_site_obs, dat_site_pred, np.exp(-beta))
+            out_list_rsquare.append(emp_rsquare)
+            out_list_loglik.append(emp_loglik)
+            out_list_ks.append(emp_ks)
+            
+            for i in range(Niter):
+                sample_i = sorted(stats.logser.rvs(np.exp(-beta), size = S0), reverse = True)
+                sample_rsquare, sample_loglik, sample_ks = get_sample_stats_sad(sample_i, dat_site_pred, np.exp(-beta), N0)
+                out_list_rsquare.append(sample_rsquare)
+                out_list_loglik.append(sample_loglik)
+                out_list_ks.append(sample_ks)
+  
+            write_to_file('./out_files/SAD_bootstrap_SSNT_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
+            write_to_file('./out_files/SAD_bootstrap_SSNT_loglik.txt', ",".join(str(x) for x in out_list_loglik))
+            write_to_file('./out_files/SAD_bootstrap_SSNT_ks.txt', ",".join(str(x) for x in out_list_ks))
