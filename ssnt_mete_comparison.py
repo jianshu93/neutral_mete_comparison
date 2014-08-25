@@ -38,7 +38,7 @@ class ssnt_isd_bounded():
     
     def cdf(self, x): # cdf of D is equal to cdf of D^alpha
         if x < self.a: return 0
-        else: return 1 - np.exp(-np.par * (x ** self.alpha - 1))
+        else: return 1 - np.exp(-self.par * (x ** self.alpha - 1))
     
     def ppf(self, q):
         return (1 - np.log(1 - q) / self.par) ** (1 / self.alpha)
@@ -187,11 +187,11 @@ def get_obs_pred_iisd_sdr(raw_data, dataset_name, alpha, out_dir = './out_files/
             dbh_raw = dat_site['dbh']
             dbh_scaled = np.array(dbh_raw / min(dbh_raw))
             par = N0 / (sum(dbh_scaled ** alpha) - N0)
+            iisd_ssnt = ssnt_isd_bounded(alpha, par)
             
             for sp in np.unique(dat_site['sp']):
                 dbh_sp = dbh_scaled[dat_site['sp'] == sp]
                 scaled_rank_sp  =[(x + 0.5) / len(dbh_sp) for x in range(len(dbh_sp))]
-                iisd_ssnt = ssnt_isd_bounded(alpha, par)
                 dbh_pred_sp = [iisd_ssnt.ppf(q) for q in scaled_rank_sp]
                 sdr_obs.append(sum([dbh ** 2 for dbh in dbh_sp]) / len(dbh_sp))
                 sdr_pred.append(sum([dbh ** 2 for dbh in dbh_pred_sp]) / len(dbh_sp))
@@ -395,7 +395,7 @@ def bootstrap_ISD_SDR_iISD_SSNT(dat_name, alpha = 1, cutoff = 9, Niter = 500):
                 
     for site in site_list:
         dat_site = dat[dat['site'] == site]
-        S_list = set(dat_site['sp'])
+        S_list = np.unique(dat_site['sp'])
         S0 = len(S_list)
         if S0 > cutoff:
             N0 = len(dat_site)
@@ -432,52 +432,38 @@ def bootstrap_ISD_SDR_iISD_SSNT(dat_name, alpha = 1, cutoff = 9, Niter = 500):
                 ks_sp = max(abs(emp_cdf - np.array([isd_ssnt.cdf(x) for x in dbh_site_sp])))
                 emp_ks_list.append(ks_sp)
             
-            out_ks_site = '/out_files/iISD_bootstrap_ks/iISD_bootstrap_ks_' + dat_name + '_' + str(round(alpha, 2)) + '_' + site + '.txt'
-            write_to_file(out_ks_site, ",".join(str(x) for x in n_list)) 
-            write_to_file(out_ks_site, ",".join(str(x) for x in emp_ks_list)) 
+            out_ks_site = './out_files/iISD_bootstrap_ks/iISD_bootstrap_ks_' + dat_name + '_' + str(round(alpha, 2)) + '_' + site + '.txt'
+            wk.write_to_file(out_ks_site, ",".join(str(x) for x in n_list)) 
+            wk.write_to_file(out_ks_site, ",".join(str(x) for x in emp_ks_list)) 
             
             for i in range(Niter):
                 # Generate a sample from the predicte ISD
                 rand_q = stats.uniform.rvs(size = N0)
-                sim_ISD = np.array([ssnt_isd_bounded.ppf(x) for x in rand_q])
+                sim_ISD = np.array([isd_ssnt.ppf(x) for x in rand_q])
                 sim_isd_rsquare, sim_isd_loglik, sim_isd_ks = get_sample_stats_isd_ssnt(np.sort(sim_ISD), \
                                                                                                    dat_site_obs_pred_isd['pred'], isd_ssnt)
                 out_list_isd_rsquare.append(sim_isd_rsquare)
                 out_list_isd_loglik.append(sim_isd_loglik)
                 out_list_isd_ks.append(sim_isd_ks)
                 
-                emp_sdr_list, sim_sdr_list = [], []
+                sim_sdr_list, sim_ks_list, sim_iisd_list = [], [], []
                 for i, sp in enumerate(S_list):
-                    dbh_site_sp = dbh_scaled[dat_site['sp'] == sp]
-                    dbh_site_sp_sim = sim_ISD[dat_site[dat_site['sp'] == sp]]
-                    emp_sdr_list.append(sum([dbh ** 2 for dbh in dbh_site_sp])
+                    dbh_site_sp_sim = sim_ISD[dat_site['sp'] == sp]
+                    sim_sdr_list.append(sum([x ** 2 for x in dbh_site_sp_sim]) / len(dbh_site_sp_sim))
+                    sim_iisd_list.extend(sorted(dbh_site_sp_sim))
+                    sim_cdf = mtools.get_emp_cdf(dbh_site_sp_sim)
+                    ks_sp_sim = max(abs(sim_cdf - np.array([isd_ssnt.cdf(x) for x in dbh_site_sp_sim])))
+                    sim_ks_list.append(ks_sp_sim)
                     
-                    
-            input_list = [dat_site, theta, dbh2_scale, dat_site_pred_sdr, dat_site_pred_iisd, dat_name, site]
-            num_pools = 8
-            Nround = int(math.floor(Niter / num_pools))
-            for i in xrange(Nround):
-                pool = multiprocessing.Pool(num_pools)
-                out_sample = pool.map(generate_SDR_iISD_sample, [input_list for j in xrange(num_pools)])
-                for output in out_sample:
-                    sample_sdr_rsquare, sample_iisd_rsquare, loglik_i = output
-                    out_list_sdr_rsquare.append(sample_sdr_rsquare)
-                    out_list_iisd_rsquare.append(sample_iisd_rsquare)
-                    out_list_iisd_loglik.append(loglik_i)
-                pool.close()
-                pool.join()
+                wk.write_to_file(out_ks_site, ",".join(str(x) for x in sim_ks_list))
+                out_list_iisd_rsquare.append(mtools.obs_pred_rsquare(np.log10(sim_iisd_list), \
+                                                                     np.log10(dat_site_obs_pred_iisd['pred'])))
+                out_list_sdr_rsquare.append(mtools.obs_pred_rsquare(np.log10(sim_sdr_list), \
+                                                                    np.log10(dat_site_obs_pred_sdr['pred'])))
             
-            Nleft = Niter - num_pools * Nround
-            pool = multiprocessing.Pool(Nleft)
-            out_sample = pool.map(generate_SDR_iISD_sample, [input_list for j in xrange(Nleft)])
-            for output in out_sample:
-                sample_sdr_rsquare, sample_iisd_rsquare, loglik_i = output
-                out_list_sdr_rsquare.append(sample_sdr_rsquare)
-                out_list_iisd_rsquare.append(sample_iisd_rsquare)
-                out_list_iisd_loglik.append(loglik_i)
-            pool.close()
-            pool.join()
+            wk.write_to_file('./out_files/ISD_bootstrap_rsquare_' + str(round(alpha, 2)) + '.txt', ",".join(str(x) for x in out_list_isd_rsquare))
+            wk.write_to_file('./out_files/ISD_bootstrap_loglik_' + str(round(alpha, 2)) + '.txt', ",".join(str(x) for x in out_list_isd_loglik))
+            wk.write_to_file('./out_files/ISD_bootstrap_ks_' + str(round(alpha, 2)) + '.txt', ",".join(str(x) for x in out_list_isd_ks))
+            wk.write_to_file('./out_files/SDR_bootstrap_rsquare_' + str(round(alpha, 2)) + '.txt', ",".join(str(x) for x in out_list_sdr_rsquare))
+            wk.write_to_file('./out_files/iISD_bootstrap_rsquare_' + str(round(alpha, 2)) + '.txt', ",".join(str(x) for x in out_list_iisd_rsquare))
             
-            write_to_file('./out_files/SDR_bootstrap_rsquare.txt', ",".join(str(x) for x in out_list_sdr_rsquare))
-            write_to_file('./out_files/iISD_bootstrap_rsquare.txt', ",".join(str(x) for x in out_list_iisd_rsquare))
-            write_to_file('./out_files/iISD_bootstrap_loglik.txt', ",".join(str(x) for x in  out_list_iisd_loglik))
