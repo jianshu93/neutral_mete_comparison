@@ -159,7 +159,7 @@ def get_ssnt_obs_pred_isd(raw_data, dataset_name, alpha, out_dir = './out_files/
                 f.writerows(results)
         f_write.close()
 
-def get_obs_pred_iisd_sdr(raw_data, dataset_name, alpha, out_dir = './out_files/', cutoff = 9, n_cutoff = 4):
+def get_obs_pred_iisd_sdr(raw_data, dataset_name, alpha, out_dir = './out_files/', cutoff = 9):
     """This is the SSNT version of get_obs_pred_intradist() in module "working_functions". 
     
     To be consistent with METE, the SDR is recorded in the unit of D^2 (metabolic rate). 
@@ -195,9 +195,8 @@ def get_obs_pred_iisd_sdr(raw_data, dataset_name, alpha, out_dir = './out_files/
                 dbh_pred_sp = [iisd_ssnt.ppf(q) for q in scaled_rank_sp]
                 sdr_obs.append(sum([dbh ** 2 for dbh in dbh_sp]))
                 sdr_pred.append(sum([dbh ** 2 for dbh in dbh_pred_sp]))
-                if len(dbh_sp) > n_cutoff:
-                    iisd_obs.extend(sorted(dbh_sp))
-                    iisd_pred.extend(sorted(dbh_pred_sp))
+                iisd_obs.extend(sorted(dbh_sp))
+                iisd_pred.extend(sorted(dbh_pred_sp))
 
             results1 = np.zeros((len(sdr_obs), ), dtype = ('S15, f8, f8'))
             results1['f0'] = np.array([site] * len(sdr_obs))
@@ -371,22 +370,20 @@ def bootstrap_SAD_SSNT(dat_name, cutoff = 9, Niter = 500):
             wk.write_to_file('./out_files/SAD_bootstrap_SSNT_ks.txt', ",".join(str(x) for x in out_list_ks))
 
 #def bootstrap_ISD_SDR_iISD_SSNT(dat_name, alpha = 1, cutoff = 9, Niter = 500):
-    #"""Compare the goodness of fit of the size-related patterns (ISD & SDR) to 
+    #"""Compare the goodness of fit of the size-related patterns (ISD, iISD & SDR) to 
     
     #that of the boostrapped samples from the proposed SSNT distributions.
     
-    #This function can be very slow for large dataset thus parallel computing 
-    #is adopted inside the function for speed.
-    #Note that if parallel computing is not adopted, or if it is implemented outside
-    #the function, psi_epsilon.ppf() can cause memory leak.
     #Inputs:
     #dat_name - name of study
     #cutoff - minimum number of species required to run - 1
     #Niter - number of bootstrap samples
     #"""
-    #dat = import_raw_data('./data/' + dat_name + '.csv')
+    #dat = wk.import_raw_data('./data/' + dat_name + '.csv')
     #site_list = np.unique(dat['site'])
-    #dat_obs_pred = import_obs_pred_data('./out_files/' + dat_name + '_obs_pred_isd_dbh2.csv')
+    #dat_obs_pred_isd = wk.import_obs_pred_data('./out_files/' + dataset_name + '_' + str(round(alpha, 2)) + '.csv')
+    #dat_obs_pred_sdr = wk.import_obs_pred_data('./out_files/' + dataset_name + '_' + str(round(alpha, 2)) + '_obs_pred_sdr.csv')
+    #dat_obs_pred_iisd = wk.import_obs_pred_data('./out_files/' + dataset_name + '_' + str(round(alpha, 2)) + '_obs_pred_iisd.csv')                                            
         
     #for site in site_list:
         #dat_site = dat[dat['site'] == site]
