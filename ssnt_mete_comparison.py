@@ -135,7 +135,6 @@ def get_ssnt_obs_pred_isd(raw_data, dataset_name, alpha, out_dir = './out_files/
         
         """
         site_list = np.unique(raw_data['site'])
-        usites = np.sort(list(set(raw_data["site"])))
         out_name = dataset_name + '_' + str(round(alpha, 2)) + '.csv'
         f_write = open(out_dir + out_name, 'wb')
         f = csv.writer(f_write)
@@ -160,6 +159,60 @@ def get_ssnt_obs_pred_isd(raw_data, dataset_name, alpha, out_dir = './out_files/
                 f.writerows(results)
         f_write.close()
 
+def get_obs_pred_iisd_sdr(raw_data, dataset_name, alpha, out_dir = './out_files/', cutoff = 9, n_cutoff = 4):
+    """This is the SSNT version of get_obs_pred_intradist() in module "working_functions". 
+    
+    To be consistent with METE, the SDR is recorded in the unit of D^2 (metabolic rate). 
+    Keyword arguments:
+    raw_data : numpy structured array with 3 columns: 'site','sp','dbh'
+    dataset_name : short code that will indicate the name of the dataset in
+                    the output file names
+    out_dir : directory in which to store output
+    cutoff : minimum number of species required to run - 1.
+    n_cutoff: minimal number of individuals within a species to be included in iISD -1 
+    
+    """
+    site_list = np.unique(raw_data['site'])
+    f1_write = open(out_dir + dataset_name + '_' + str(round(alpha, 2)) + '_obs_pred_sdr.csv', 'wb')
+    f1 = csv.writer(f1_write)
+    f2_write = open(out_dir + dataset_name + '_' + str(round(alpha, 2)) + '_obs_pred_iisd.csv', 'wb')
+    f2 = csv.writer(f2_write)
+
+    for site in site_list:
+        dat_site = raw_data[raw_data['site'] == site]
+        S0 = len(np.unique(dat_site['sp']))
+        if S0 > cutoff:
+            sdr_obs, sdr_pred, iisd_obs, iisd_pred = [], [], [], []
+            N0 = len(dat_site)
+            dbh_raw = dat_site['dbh']
+            dbh_scaled = np.array(dbh_raw / min(dbh_raw))
+            par = N0 / (sum(dbh_scaled ** alpha) - N0)
+            
+            for sp in np.unique(dat_site['sp']):
+                dbh_sp = dbh_scaled[dat_site['sp'] == sp]
+                scaled_rank_sp  =[(x + 0.5) / len(dbh_sp) for x in range(len(dbh_sp))]
+                iisd_ssnt = ssnt_isd_bounded(alpha, par)
+                dbh_pred_sp = [iisd_ssnt.ppf(q) for q in scaled_rank_sp]
+                sdr_obs.append(sum([dbh ** 2 for dbh in dbh_sp]))
+                sdr_pred.append(sum([dbh ** 2 for dbh in dbh_pred_sp]))
+                if len(dbh_sp) > n_cutoff:
+                    iisd_obs.extend(sorted(dbh_sp))
+                    iisd_pred.extend(sorted(dbh_pred_sp))
+
+            results1 = np.zeros((len(sdr_obs), ), dtype = ('S15, f8, f8'))
+            results1['f0'] = np.array([site] * len(sdr_obs))
+            results1['f1'] = np.array(sdr_obs)
+            results1['f2'] = np.array(sdr_pred)
+            f1.writerows(results1)
+            
+            results2 = np.zeros((len(iisd_obs), ), dtype = ('S15, f8, f8'))
+            results2['f0'] = np.array([site] * len(iisd_obs))
+            results2['f1'] = np.array(iisd_obs)
+            results2['f2'] = np.array(iisd_pred)
+            f2.writerows(results2)
+    f1_write.close()
+    f2_write.close()
+            
 def get_isd_lik_three_models(dat_list, out_dir = './out_files/', cutoff = 9):
     """Function to obtain the community-level log-likelihood (standardized by the number of individuals)
     
@@ -316,3 +369,72 @@ def bootstrap_SAD_SSNT(dat_name, cutoff = 9, Niter = 500):
             wk.write_to_file('./out_files/SAD_bootstrap_SSNT_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
             wk.write_to_file('./out_files/SAD_bootstrap_SSNT_loglik.txt', ",".join(str(x) for x in out_list_loglik))
             wk.write_to_file('./out_files/SAD_bootstrap_SSNT_ks.txt', ",".join(str(x) for x in out_list_ks))
+
+#def bootstrap_ISD_SDR_iISD_SSNT(dat_name, alpha = 1, cutoff = 9, Niter = 500):
+    #"""Compare the goodness of fit of the size-related patterns (ISD & SDR) to 
+    
+    #that of the boostrapped samples from the proposed SSNT distributions.
+    
+    #This function can be very slow for large dataset thus parallel computing 
+    #is adopted inside the function for speed.
+    #Note that if parallel computing is not adopted, or if it is implemented outside
+    #the function, psi_epsilon.ppf() can cause memory leak.
+    #Inputs:
+    #dat_name - name of study
+    #cutoff - minimum number of species required to run - 1
+    #Niter - number of bootstrap samples
+    #"""
+    #dat = import_raw_data('./data/' + dat_name + '.csv')
+    #site_list = np.unique(dat['site'])
+    #dat_obs_pred = import_obs_pred_data('./out_files/' + dat_name + '_obs_pred_isd_dbh2.csv')
+        
+    #for site in site_list:
+        #dat_site = dat[dat['site'] == site]
+        #S_list = set(dat_site['sp'])
+        #S0 = len(S_list)
+        #if S0 > cutoff:
+            #N0 = len(dat_site)
+            #dbh_scale = np.array(dat_site['dbh'] / min(dat_site['dbh']))
+            #dbh2_scale = dbh_scale ** 2
+            #E0 = sum(dbh2_scale)
+            #psi = psi_epsilon(S0, N0, E0)
+            
+            #dat_site_obs_pred = dat_obs_pred[dat_obs_pred['site'] == site]
+            #dat_site_obs = dat_site_obs_pred['obs']
+            #dat_site_pred = dat_site_obs_pred['pred']
+            
+            #emp_rsquare, emp_loglik = get_sample_stats_isd(dat_site_obs, dat_site_pred, psi)
+            #emp_cdf = macroecotools.get_emp_cdf(dat_site_obs)
+            #emp_ks = max(abs(emp_cdf - np.array([psi.cdf(x) for x in dat_site_obs])))
+            
+            #del dbh_scale, dbh2_scale, dat_site_obs 
+            
+            #write_to_file('./out_files/ISD_bootstrap_rsquare.txt', ",".join([dat_name, site, str(emp_rsquare)]), new_line = False)
+            #write_to_file('./out_files/ISD_bootstrap_loglik.txt', ",".join([dat_name, site, str(emp_loglik)]), new_line = False)
+            #write_to_file('./out_files/ISD_bootstrap_ks.txt', ",".join([dat_name, site, str(emp_ks)]), new_line = False)
+            
+            #num_pools = 8  # Assuming that 8 pools are to be created
+            #for i in xrange(Niter):
+                #sample_i = []
+                #cdf_i = []
+                #while len(sample_i) < N0:
+                    #pool = multiprocessing.Pool(num_pools)
+                    #out_sample = pool.map(generate_isd_sample, [psi for j in xrange(num_pools)])
+                    #for combo in out_sample:
+                        #cdf_sublist, sample_sublist = combo
+                        #sample_i.extend(sample_sublist)
+                        #cdf_i.extend(cdf_sublist)
+                    #pool.close()
+                    #pool.join()
+                #sample_i = sorted(sample_i[:N0])
+                #sample_rsquare, sample_loglik = get_sample_stats_isd(sample_i, dat_site_pred, psi)
+                #cdf_i = sorted(cdf_i[:N0])
+                #sample_ks = max([abs(x - (i+1)/N0) for i, x in enumerate(cdf_i)])
+                
+                #write_to_file('./out_files/ISD_bootstrap_rsquare.txt', "".join([',', str(sample_rsquare)]), new_line = False)
+                #write_to_file('./out_files/ISD_bootstrap_loglik.txt', "".join([',', str(sample_loglik)]), new_line = False)
+                #write_to_file('./out_files/ISD_bootstrap_ks.txt', "".join([',', str(sample_ks)]), new_line = False)
+            
+            #write_to_file('./out_files/ISD_bootstrap_rsquare.txt', '\t')
+            #write_to_file('./out_files/ISD_bootstrap_loglik.txt', '\t')
+            #write_to_file('./out_files/ISD_bootstrap_ks.txt', '\t')
