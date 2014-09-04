@@ -392,6 +392,9 @@ def bootstrap_ISD_SDR_iISD_SSNT(dat_name, alpha = 1, cutoff = 9, Niter = 500):
     dat_obs_pred_isd = wk.import_obs_pred_data('./out_files/' + dat_name + '_' + str(round(alpha, 2)) + '.csv')
     dat_obs_pred_sdr = wk.import_obs_pred_data('./out_files/' + dat_name + '_' + str(round(alpha, 2)) + '_obs_pred_sdr.csv')
     dat_obs_pred_iisd = wk.import_obs_pred_data('./out_files/' + dat_name + '_' + str(round(alpha, 2)) + '_obs_pred_iisd.csv')                                            
+
+    if not os.path.exists('./out_files/iISD_bootstrap_ks/SSNT_' + str(round(alpha, 2)) + '/'):
+        os.makedirs('./out_files/iISD_bootstrap_ks/SSNT_' + str(round(alpha, 2)) + '/')
                 
     for site in site_list:
         dat_site = dat[dat['site'] == site]
@@ -432,7 +435,8 @@ def bootstrap_ISD_SDR_iISD_SSNT(dat_name, alpha = 1, cutoff = 9, Niter = 500):
                 ks_sp = max(abs(emp_cdf - np.array([isd_ssnt.cdf(x) for x in dbh_site_sp])))
                 emp_ks_list.append(ks_sp)
             
-            out_ks_site = './out_files/iISD_bootstrap_ks/iISD_bootstrap_ks_' + dat_name + '_' + str(round(alpha, 2)) + '_' + site + '.txt'
+            out_ks_site = './out_files/iISD_bootstrap_ks/SSNT_' + str(round(alpha, 2)) + \
+                '/iISD_bootstrap_ks_' + dat_name + '_' + str(round(alpha, 2)) + '_' + site + '.txt'
             wk.write_to_file(out_ks_site, ",".join(str(x) for x in n_list)) 
             wk.write_to_file(out_ks_site, ",".join(str(x) for x in emp_ks_list)) 
             
@@ -467,3 +471,60 @@ def bootstrap_ISD_SDR_iISD_SSNT(dat_name, alpha = 1, cutoff = 9, Niter = 500):
             wk.write_to_file('./out_files/SDR_bootstrap_rsquare_' + str(round(alpha, 2)) + '.txt', ",".join(str(x) for x in out_list_sdr_rsquare))
             wk.write_to_file('./out_files/iISD_bootstrap_rsquare_' + str(round(alpha, 2)) + '.txt', ",".join(str(x) for x in out_list_iisd_rsquare))
             
+def plot_bootstrap(alpha = 1):
+    """Similar to create_Fig_E2() in working_functions.
+    
+    Add input "alpha" to adapt to output files for different transformations.
+    
+    """
+    fig = plt.figure(figsize = (7, 14))
+    sad_r2 = wk.import_bootstrap_file('./out_files/SAD_bootstrap_SSNT_rsquare.txt', Niter = 500)
+    ax_1 = plt.subplot(421)
+    wk.plot_hist_quan(sad_r2, ax = ax_1)
+    plt.xlabel('Quantile', fontsize = 8)
+    plt.ylabel('Frequency', fontsize = 8)
+    plt.title(r'SAD, $R^2$', fontsize = 10)
+ 
+    sad_ks = wk.import_bootstrap_file('./out_files/SAD_bootstrap_SSNT_ks.txt', Niter = 500)
+    ax_2 = plt.subplot(422)
+    wk.plot_hist_quan(sad_ks, dat_type = 'ks', ax = ax_2)
+    plt.xlabel('Quantile', fontsize = 8)
+    plt.ylabel('Frequency', fontsize = 8)
+    plt.title('SAD, K-S Statistic', fontsize = 10)
+ 
+    isd_r2 = wk.import_bootstrap_file('./out_files/ISD_bootstrap_rsquare_' + str(round(alpha, 2)) + '.txt', Niter = 500)
+    ax_3 = plt.subplot(423)
+    wk.plot_hist_quan(isd_r2, ax = ax_3)
+    plt.xlabel('Quantile', fontsize = 8)
+    plt.ylabel('Frequency', fontsize = 8)
+    plt.title(r'ISD, $R^2$', fontsize = 10)
+ 
+    isd_ks = wk.import_bootstrap_file('./out_files/ISD_bootstrap_ks_' + str(round(alpha, 2)) + '.txt', Niter = 500)
+    ax_4 = plt.subplot(424)
+    wk.plot_hist_quan(isd_ks, dat_type = 'ks', ax = ax_4)
+    plt.xlabel('Quantile', fontsize = 8)
+    plt.ylabel('Frequency', fontsize = 8)
+    plt.title('ISD, K-S Statistic', fontsize = 10)
+
+    iisd_r2 = wk.import_bootstrap_file('./out_files/iISD_bootstrap_rsquare_' + str(round(alpha, 2)) + '.txt', Niter = 500)
+    ax_5 = plt.subplot(425)
+    wk.plot_hist_quan(iisd_r2, ax = ax_5)
+    plt.xlabel('Quantile', fontsize = 8)
+    plt.ylabel('Frequency', fontsize = 8)
+    plt.title(r'iISD, $R^2$', fontsize = 10)
+   
+    ax_6 = plt.subplot(426)
+    wk.plot_hist_quan_iisd_ks('./out_files/iISD_bootstrap_ks/SSNT_' + str(round(alpha, 2)) + '/', ax = ax_6)
+    plt.xlabel('Quantile', fontsize = 8)
+    plt.ylabel('Frequency', fontsize = 8)
+    plt.title('iISD, K-S Statistic', fontsize = 10)
+    
+    sdr_r2 = wk.import_bootstrap_file('./out_files/SDR_bootstrap_rsquare_' + str(round(alpha, 2)) + '.txt', Niter = 500)
+    ax_7 = plt.subplot(427)
+    wk.plot_hist_quan(sdr_r2, ax = ax_7)
+    plt.xlabel('Quantile', fontsize = 8)
+    plt.ylabel('Frequency', fontsize = 8)
+    plt.title(r'SDR, $R^2$', fontsize = 10)
+   
+    plt.subplots_adjust(wspace = 0.29, hspace = 0.29)
+    plt.savefig('Bootstrap_SSNT_' + str(round(alpha, 2)) + '.pdf', dpi = 600)
