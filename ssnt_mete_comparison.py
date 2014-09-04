@@ -276,8 +276,8 @@ def get_lik_sp_abd_dbh_three_models(dat_list, out_dir = './out_files/', cutoff =
                 print>>out, dat_name, site, str(lik_mete), str(lik_ssnt), str(lik_ssnt_transform)
                 out.close()
 
-def plot_obs_pred_diameter(datasets, in_file_name, data_dir = './out_files/', ax = None, radius = 2, mete = False):
-    """Plot the observed vs predicted ISD across multiple datasets"""
+def plot_obs_pred_diameter(datasets, in_file_name, data_dir = './out_files/', ax = None, radius = 2, mete = False, title = None):
+    """Plot the observed vs predicted diamters across multiple datasets. Applies to both ISD and iISD."""
     isd_sites, isd_obs, isd_pred = wk.get_obs_pred_from_file(datasets, data_dir, in_file_name)
     if mete:
         isd_obs = isd_obs ** 0.5
@@ -288,6 +288,19 @@ def plot_obs_pred_diameter(datasets, in_file_name, data_dir = './out_files/', ax
     wk.plot_obs_pred(isd_obs, isd_pred, radius, 1, ax = ax)
     ax.set_xlabel('Predicted diameter', labelpad = 4, size = 8)
     ax.set_ylabel('Observed diameter', labelpad = 4, size = 8)
+    if title: plt.title(title, fontsize = 10)
+    return ax
+
+def plot_obs_pred_sad_sdr(datasets, in_file_name, data_dir = "./out_files/", ax = None, radius =2, title = None, axis_lab = 'abundance'):
+    """Plot the observed vs predicted SAD or SDR for each species for multiple datasets."""
+    sites, obs, pred = wk.get_obs_pred_from_file(datasets, data_dir, in_file_name)
+    if not ax:
+        fig = plt.figure(figsize = (3.5, 3.5))
+        ax = plt.subplot(111)
+    wk.plot_obs_pred(obs, pred, radius, 1, ax = ax)
+    ax.set_xlabel('Predicted ' + axis_lab, labelpad = 4, size = 8)
+    ax.set_ylabel('Observed ' + axis_lab, labelpad = 4, size = 8)
+    if title: plt.title(title, fontsize = 10)
     return ax
 
 def plot_likelihood_comp(lik_1, lik_2, xlabel, ylabel, ax = None):
