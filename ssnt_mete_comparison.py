@@ -194,7 +194,7 @@ def get_obs_pred_iisd_sdr(raw_data, dataset_name, alpha, out_dir = './out_files/
                 scaled_rank_sp  =[(x + 0.5) / len(dbh_sp) for x in range(len(dbh_sp))]
                 dbh_pred_sp = [iisd_ssnt.ppf(q) for q in scaled_rank_sp]
                 sdr_obs.append(sum([dbh ** 2 for dbh in dbh_sp]) / len(dbh_sp))
-                sdr_pred.append(sum([dbh ** 2 for dbh in dbh_pred_sp]) / len(dbh_sp))
+                sdr_pred.append(2 / par ** 2 + 2 / par + 1) # Note that this now only works for alpha=1
                 iisd_obs.extend(sorted(dbh_sp))
                 iisd_pred.extend(sorted(dbh_pred_sp))
 
