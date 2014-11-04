@@ -1,6 +1,7 @@
 from __future__ import division
 import matplotlib
 matplotlib.use('Agg')
+import os
 import matplotlib.pyplot as plt
 import csv
 import numpy as np
