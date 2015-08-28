@@ -546,7 +546,7 @@ def plot_bootstrap(alpha = 1):
     plt.subplots_adjust(wspace = 0.29, hspace = 0.29)
     plt.savefig('Bootstrap_SSNT_' + str(round(alpha, 2)) + '_200.pdf', dpi = 600)
 
-def clean_data_genera(raw_data_site, cutoff_genera = 4, cutoff_sp = 9, max_removal = 0.1):
+def clean_data_agsne(raw_data_site, cutoff_genera = 4, cutoff_sp = 9, max_removal = 0.1):
     """Further cleanup of data, removing individuals with undefined genus. 
     
     Inputs:
@@ -573,11 +573,19 @@ def clean_data_genera(raw_data_site, cutoff_genera = 4, cutoff_sp = 9, max_remov
     if counter / len(raw_data_site) <= max_removal:
         raw_data_site = np.delete(raw_data_site, np.array(row_to_remove), axis = 0)
         gen_col = np.array(genus_list)
-        out = append_fields(raw_data_site, 'genus', gen_col)
+        out = append_fields(raw_data_site, 'genus', gen_col, usemask = False)
         if len(np.unique(out['sp'])) > cutoff_sp and len(np.unique(out['genus'])) > cutoff_genera: 
             return out
         else: return None
     else: return None
+
+def get_GSNE(raw_data_site):
+    """Obtain the state variables given data for a single site, returned by clean_data_genera()."""
+    G = len(np.unique(raw_data_site['genus']))
+    S = len(np.unique(raw_data_site['sp']))
+    N = len(raw_data_site)
+    E = sum((raw_data_site['dbh'] / min(raw_data_site['dbh'])) ** 2)
+    return G, S, N, E
 
 def get_agsne_obs_pred_sad(raw_data_site, dataset_name, out_dir = './out_files/'):
     """Write the observed and AGSNE-predicted SAD to file. Here it is assumed that the input data (raw_data_site)
@@ -590,11 +598,7 @@ def get_agsne_obs_pred_sad(raw_data_site, dataset_name, out_dir = './out_files/'
     out_dir - directory for output file.
     
     """
-    G = len(np.unique(raw_data_site['genus']))
-    S = len(np.unique(raw_data_site['sp']))
-    N = len(raw_data_site)
-    E = sum(raw_data_site['dbh'] / min(raw_data_site['dbh']))
-    
+    G, S, N, E = get_GSNE(raw_data_site)
     pred = agsne.get_mete_agsne_rad(G, S, N, E)
     obs = np.sort([len(raw_data_site[raw_data_site['sp'] == sp]) for sp in np.unique(raw_data_site['sp'])])[::-1]
     results = np.zeros((S, ), dtype = ('S15, i8, i8'))
@@ -606,3 +610,53 @@ def get_agsne_obs_pred_sad(raw_data_site, dataset_name, out_dir = './out_files/'
     f1 = csv.writer(f1_write)
     f1.writerows(results)
     f1_write.close()
+
+def get_agsne_obs_pred_isd(raw_data_site, dataset_name, out_dir = './out_files/'):
+    """Write the observed and AGSNE-predicted ISD to file. Here it is assumed that the input data (raw_data_site)
+    
+    has already gone through screening and cleaning (thus cutoff is no longer needed).
+    For inputs see get_agsne_obs_pred_sad(). 
+    
+    """
+    G, S, N, E = get_GSNE(raw_data_site)
+    pred = np.array(agsne.get_mete_agsne_isd(G, S, N, E)) ** 0.5 # Note the prediction is for metabolic rate, or D^2
+    obs = np.sort(raw_data_site['dbh'] / min(raw_data_site['dbh']))[::-1]
+    results = np.zeros((N, ), dtype = ('S15, f8, f8'))
+    results['f0'] = np.array([raw_data_site['site'][0]] * N)
+    results['f1'] = obs
+    results['f2'] = pred    
+    
+    f1_write = open(out_dir + dataset_name + '_obs_pred_isd_agsne.csv', 'ab')
+    f1 = csv.writer(f1_write)
+    f1.writerows(results)
+    f1_write.close()
+
+def get_agsne_obs_pred_sdr(raw_data_site, dataset_name, out_dir = './out_files/'):
+    """Write the observed and AGSNE-predicted size-density relationship to file. Here it is assumed that the input data (raw_data_site)
+    
+    has already gone through screening and cleaning (thus cutoff is no longer needed).
+    For inputs see get_agsne_obs_pred_sad(). 
+    
+    """
+    G, S, N, E = get_GSNE(raw_data_site)
+    lambda1, beta, lambda3 = agsne.get_agsne_lambdas(G, S, N, E)
+    theta = mete_distributions.theta_agsne([G, S, N, E], [lambda1, beta, lambda3, agsne.agsne_lambda3_z(lambda1, beta, S) / lambda3])
+    
+    pred, obs = [], []
+    scaled_d2 = (raw_data_site['dbh'] / min(raw_data_site['dbh'])) ** 2
+    for sp in np.unique(raw_data_site['sp']):
+        n = len(raw_data_site[raw_data_site['sp'] == sp]) # Number of individuals within species
+        genus_sp = raw_data_site['genus'][raw_data_site['sp'] == sp][0]
+        m = len(np.unique(raw_data_site['sp'][raw_data_site['genus'] == genus_sp])) # Number of specis within genus
+        pred.append(theta.expected(m, n))
+        obs.append(np.mean(scaled_d2[raw_data_site['sp'] == sp]))
+    
+    results = np.zeros((S, ), dtype = ('S15, f8, f8'))
+    results['f0'] = np.array([raw_data_site['site'][0]] * S)
+    results['f1'] = obs
+    results['f2'] = pred    
+    f1_write = open(out_dir + dataset_name + '_obs_pred_sdr_agsne.csv', 'ab')
+    f1 = csv.writer(f1_write)
+    f1.writerows(results)
+    f1_write.close()
+    
