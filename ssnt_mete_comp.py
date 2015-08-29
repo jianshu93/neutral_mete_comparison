@@ -227,6 +227,45 @@ def get_ssnt_obs_pred_isd(raw_data, dataset_name, model = 'original', data_dir =
             results['f2'] = dbh2_pred
             f1.writerows(results)
     f1_write.close()
+
+def get_ssnt_obs_pred_isd_bounded_transform(raw_data, dataset_name, data_dir = './out_files/', cutoff = 9):
+    """Obtain the observed dbh**2 and the values predicted by SSNT and write to file.
+    
+    Input:
+    raw_data - data in the same format as obtained by wk.import_raw_data(), with 
+        three columns site, sp, and dbh.
+    dataset_name - name of the dataset for raw_data.
+    model - whether the original model (ssnt_isd), the scaled model (ssnt_isd_transform), or 
+        the lower truncated model (ssnt_isd_bounded) is adopted
+    data_dir - directory for output file.
+    cutoff - minimal number of species for a site to be included.
+    
+    """
+    usites = np.sort(list(set(raw_data["site"])))
+    f1_write = open(data_dir + dataset_name + '_obs_pred_isd_ssnt_bounded_transform.csv', 'wb')
+    f1 = csv.writer(f1_write)
+    
+    for site in usites:
+        subdat = raw_data[raw_data["site"] == site]
+        dbh_raw = subdat[subdat.dtype.names[2]]
+        dbh_scale = np.array(sorted(dbh_raw / min(dbh_raw)))
+        dbh_scale_tranform = dbh_scale ** (2/3)
+        S0 = len(set(subdat[subdat.dtype.names[1]]))
+        N0 = len(dbh_scale)
+        if S0 > cutoff:
+            scaled_rank = [(x + 0.5) / len(dbh_scale) for x in range(len(dbh_scale))]
+            dbh2_obs = sorted(dbh_scale ** 2)
+            d_over_g = N0 / (sum(dbh_scale_tranform) - N0)
+            isd_dist = ssnt_isd_bounded(d_over_g)
+            dbh_transform_pred = isd_dist.ppf(scaled_rank)
+            dbh_pred = dbh_transform_pred ** (3/2)
+            
+            results = np.zeros((len(dbh_scale), ), dtype = ('S15, f8, f8'))
+            results['f0'] = np.array([site] * len(dbh_scale))
+            results['f1'] = dbh_scale
+            results['f2'] = dbh_pred
+            f1.writerows(results)
+    f1_write.close()
     
 def plot_obs_pred_isd(datasets, model, data_dir = './out_files/', ax = None, radius = 2):
     """Plot the observed vs predicted ISD across multiple datasets"""
