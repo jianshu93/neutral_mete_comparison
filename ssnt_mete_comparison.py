@@ -88,43 +88,37 @@ def lik_sp_abd_dbh_mete(sad_par, sad_upper, iisd_dist, n, dbh_list, log = True):
         for p_ind in p_dbh_log: p_iisd *= np.exp(p_ind)
         return np.exp(p_sad_log) * p_iisd
     
-def get_ssnt_obs_pred_sad(raw_data, dataset_name, out_dir = './out_files/', cutoff = 9):
+def get_ssnt_obs_pred_sad(raw_data_site, dataset_name, out_dir = './out_files/'):
     """Write the observed and predicted RAD to file. Note that the predicted form of the SAD
     
-    (untruncated logseries) does not change with scaling of diameters.
+    (untruncated logseries) does not change with scaling of diameters (and the output is duplicated
+    to facilitate further analysis).
     Inputs:
-    raw_data - data in the same format as obtained by wk.import_raw_data(), with
-        three columsn site, sp, and dbh.
-    dataset_name - name of the dataet for raw_data.
+    raw_data_site - data in the same format as obtained by clean_data_genera(), with
+        four columns site, sp, dbh, and genus, and only for one site.
+    dataset_name - name of the dataet for raw_data_site.
     out_dir - directory for output file.
-    cutoff - minimal number of species for a site to be included.
     
     """
-    usites = np.sort(list(set(raw_data["site"])))
-    f1_write = open(out_dir + dataset_name + '_obs_pred_rad_ssnt.csv', 'wb')
-    f1 = csv.writer(f1_write)
+    N = len(raw_data_site)
+    S = len(np.unique(raw_data_site['sp']))
+    pred = mete.get_mete_rad(int(S), int(N), version = 'untruncated')[0]
+    obs = np.sort([len(raw_data_site[raw_data_site['sp'] == sp]) for sp in np.unique(raw_data_site['sp'])])[::-1]
+    results = np.zeros((S, ), dtype = ('S15, i8, i8'))
+    results['f0'] = np.array([raw_data_site['site'][0]] * S)
+    results['f1'] = obs
+    results['f2'] = pred    
     
-    for i in range(0, len(usites)):
-        subsites = raw_data["site"][raw_data["site"] == usites[i]]        
-        subsp = raw_data["sp"][raw_data["site"] == usites[i]]
-        N = len(subsp)
-        S = len(set(subsp))
-        subab = []
-        for sp in set(subsp):
-            subab.append(len(subsp[subsp == sp]))
-        if S > cutoff:
-            # Generate predicted values and p (e ** -beta) based on METE:
-            mete_pred = mete.get_mete_rad(int(S), int(N), version = 'untruncated')
-            pred = np.array(mete_pred[0])
-            obsab = np.sort(subab)[::-1]
-            #save results to a csv file:
-            results = np.zeros((len(obsab), ), dtype = ('S15, i8, i8'))
-            results['f0'] = np.array([usites[i]] * len(obsab))
-            results['f1'] = obsab
-            results['f2'] = pred
-            f1.writerows(results)
+    f1_write = open(out_dir + dataset_name + '_obs_pred_rad_ssnt_0.csv', 'ab')
+    f1 = csv.writer(f1_write)
+    f1.writerows(results)
     f1_write.close()
     
+    f2_write = open(out_dir + dataset_name + '_obs_pred_rad_ssnt_1.csv', 'ab')
+    f2 = csv.writer(f2_write)
+    f2.writerows(results)
+    f2_write.close()
+        
 def get_ssnt_obs_pred_isd(raw_data, dataset_name, alpha, out_dir = './out_files/', cutoff = 9):
         """Write the observed (with rescaling) and predicted dbh to file.
         
