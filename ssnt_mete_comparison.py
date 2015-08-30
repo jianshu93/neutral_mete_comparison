@@ -88,13 +88,13 @@ def lik_sp_abd_dbh_mete(sad_par, sad_upper, iisd_dist, n, dbh_list, log = True):
         for p_ind in p_dbh_log: p_iisd *= np.exp(p_ind)
         return np.exp(p_sad_log) * p_iisd
 
-def get_obs_pred_sad(raw_data_site, raw_data_site, dataset_name, model, out_dir = ',/out_files'):
+def get_obs_pred_sad(raw_data_site, dataset_name, model, out_dir = ',/out_files'):
     """Write the observed and predicted RAD to file for a given model.
     
     Inputs:
      raw_data_site - data in the same format as obtained by clean_data_genera(), with
         four columns site, sp, dbh, and genus, and only for one site.
-    dataset_name - name of the dataet for raw_data_site.
+    dataset_name - name of the dataset for raw_data_site.
     model - can take one of three values 'ssnt', 'asne', or 'agsne'. Note that the predicted SAD for SSNT does not 
         change with alternative scaling of D.
     out_dir - directory for output file.
@@ -119,50 +119,48 @@ def get_obs_pred_sad(raw_data_site, raw_data_site, dataset_name, model, out_dir 
         f2 = csv.writer(f2_write)
         f2.writerows(results)
         f2_write.close()
-    elif model == 'asne': f1_write = open(out_dir + dataset_name + '_obs_pred_rad_asne.csv', 'ab')
-    elif model == 'agsne': f1_write = open(out_dir + dataset_name + '_obs_pred_rad_agsne.csv', 'ab')
+    else: f1_write = open(out_dir + dataset_name + '_obs_pred_rad_' + model + '.csv', 'ab')
+    f1 = csv.writer(f1_write)
+    f1.writerows(results)
+    f1_write.close()
 
+def get_obs_pred_isd(raw_data_site, dataset_name, model, out_dir = ',/out_files'):
+    """Write the observed and predicted ISD to file for a given model.
+    
+    Inputs:
+     raw_data_site - data in the same format as obtained by clean_data_genera(), with
+        four columns site, sp, dbh, and genus, and only for one site.
+    dataset_name - name of the dataset for raw_data_site.
+    model - can take one of four values 'ssnt_0' (constant growth of diameter D), 
+        'ssnt_1' (constant growth of D^2/3), 'asne', or 'agsne'. 
+    out_dir - directory for output file.
+    
+    """
+    G, S, N, E = get_GSNE(raw_data_site)
+    if model == 'asne': 
+        pred = (wk.get_mete_pred_dbh2(range(1, N + 1), S, N, E)) ** 0.5
+    elif model == 'agsne': 
+        pred = np.array(agsne.get_mete_agsne_isd(G, S, N, E)) ** 0.5
+    else: 
+        dbh_scaled = np.array(raw_data_site['dbh'] / min(raw_data_site['dbh']))
+        if model == 'ssnt_0': alpha = 1
+        elif model == 'ssnt_1': alpha = 2/3
+        par = N0 / (sum(dbh_scaled ** alpha) - N0)
+        scaled_rank = [(x + 0.5) / N for x in range(N)]
+        isd_ssnt = ssnt_isd_bounded(alpha, par)
+        pred = np.array([isd_ssnt.ppf(q) for q in scaled_rank])
+        
+    obs = np.sort(raw_data_site['dbh'] / min(raw_data_site['dbh']))[::-1]
+    results = np.zeros((N, ), dtype = ('S15, f8, f8'))
+    results['f0'] = np.array([raw_data_site['site'][0]] * N)
+    results['f1'] = obs
+    results['f2'] = pred    
+    
+    f1_write = open(out_dir + dataset_name + '_obs_pred_isd_' + model + '.csv', ab)
     f1 = csv.writer(f1_write)
     f1.writerows(results)
     f1_write.close()
                 
-def get_ssnt_obs_pred_isd(raw_data, dataset_name, alpha, out_dir = './out_files/', cutoff = 9):
-        """Write the observed (with rescaling) and predicted dbh to file.
-        
-        Input:
-        raw_data - data in the same format as obtained by wk.import_raw_data(), with 
-            three columns site, sp, and dbh.
-        dataset_name - name of the dataset for raw_data.
-        alpha - transformation on dbh where SSNT is applied
-        out_dir - directory for output file.
-        cutoff - minimal number of species for a site to be included.
-        
-        """
-        site_list = np.unique(raw_data['site'])
-        out_name = dataset_name + '_' + str(round(alpha, 2)) + '.csv'
-        f_write = open(out_dir + out_name, 'wb')
-        f = csv.writer(f_write)
-        
-        for site in site_list:
-            dat_site = raw_data[raw_data['site'] == site]
-            S0 = len(np.unique(dat_site['sp']))
-            if S0 > cutoff:
-                N0 = len(dat_site)
-                dbh_raw = dat_site['dbh']
-                dbh_scaled = np.array(sorted(dbh_raw / min(dbh_raw)))
-                par = N0 / (sum(dbh_scaled ** alpha) - N0)
-                
-                scaled_rank = [(x + 0.5) / len(dbh_raw) for x in range(len(dbh_raw))]
-                isd_ssnt = ssnt_isd_bounded(alpha, par)
-                dbh_pred = np.array([isd_ssnt.ppf(q) for q in scaled_rank])
-                
-                results = np.zeros((len(dbh_raw), ), dtype = ('S15, f8, f8'))
-                results['f0'] = np.array([site] * len(dbh_raw))
-                results['f1'] = dbh_scaled
-                results['f2'] = dbh_pred
-                f.writerows(results)
-        f_write.close()
-
 def get_obs_pred_iisd_sdr(raw_data, dataset_name, alpha, out_dir = './out_files/', cutoff = 9):
     """This is the SSNT version of get_obs_pred_intradist() in module "working_functions". 
     
@@ -587,26 +585,6 @@ def get_GSNE(raw_data_site):
     N = len(raw_data_site)
     E = sum((raw_data_site['dbh'] / min(raw_data_site['dbh'])) ** 2)
     return G, S, N, E
-
-def get_agsne_obs_pred_isd(raw_data_site, dataset_name, out_dir = './out_files/'):
-    """Write the observed and AGSNE-predicted ISD to file. Here it is assumed that the input data (raw_data_site)
-    
-    has already gone through screening and cleaning (thus cutoff is no longer needed).
-    For inputs see get_agsne_obs_pred_sad(). 
-    
-    """
-    G, S, N, E = get_GSNE(raw_data_site)
-    pred = np.array(agsne.get_mete_agsne_isd(G, S, N, E)) ** 0.5 # Note the prediction is for metabolic rate, or D^2
-    obs = np.sort(raw_data_site['dbh'] / min(raw_data_site['dbh']))[::-1]
-    results = np.zeros((N, ), dtype = ('S15, f8, f8'))
-    results['f0'] = np.array([raw_data_site['site'][0]] * N)
-    results['f1'] = obs
-    results['f2'] = pred    
-    
-    f1_write = open(out_dir + dataset_name + '_obs_pred_isd_agsne.csv', 'ab')
-    f1 = csv.writer(f1_write)
-    f1.writerows(results)
-    f1_write.close()
 
 def get_agsne_obs_pred_sdr(raw_data_site, dataset_name, out_dir = './out_files/'):
     """Write the observed and AGSNE-predicted size-density relationship to file. Here it is assumed that the input data (raw_data_site)
