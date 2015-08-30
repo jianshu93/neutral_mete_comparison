@@ -137,7 +137,7 @@ def lik_sp_abd_dbh_mete(sad_par, sad_upper, iisd_dist, n, dbh_list, log = True):
         for p_ind in p_dbh_log: p_iisd *= np.exp(p_ind)
         return np.exp(p_sad_log) * p_iisd
 
-def get_obs_pred_sad(raw_data_site, dataset_name, model, out_dir = ',/out_files'):
+def get_obs_pred_sad(raw_data_site, dataset_name, model, out_dir = './out_files/'):
     """Write the observed and predicted RAD to file for a given model.
     
     Inputs:
@@ -173,7 +173,7 @@ def get_obs_pred_sad(raw_data_site, dataset_name, model, out_dir = ',/out_files'
     f1.writerows(results)
     f1_write.close()
 
-def get_obs_pred_isd(raw_data_site, dataset_name, model, out_dir = ',/out_files'):
+def get_obs_pred_isd(raw_data_site, dataset_name, model, out_dir = './out_files/'):
     """Write the observed and predicted ISD to file for a given model.
     
     Inputs:
@@ -205,12 +205,12 @@ def get_obs_pred_isd(raw_data_site, dataset_name, model, out_dir = ',/out_files'
     results['f1'] = obs
     results['f2'] = pred    
     
-    f1_write = open(out_dir + dataset_name + '_obs_pred_isd_' + model + '.csv', ab)
+    f1_write = open(out_dir + dataset_name + '_obs_pred_isd_' + model + '.csv', 'ab')
     f1 = csv.writer(f1_write)
     f1.writerows(results)
     f1_write.close()
 
-def get_obs_pred_sdr(raw_data_site, dataset_name, model, out_dir = ',/out_files'):
+def get_obs_pred_sdr(raw_data_site, dataset_name, model, out_dir = './out_files/'):
     """Write the observed and predicted SDR (in unit of D^2) to file for a given model.
     
     Inputs:
@@ -228,8 +228,8 @@ def get_obs_pred_sdr(raw_data_site, dataset_name, model, out_dir = ',/out_files'
     lambda1, beta, lambda3 = agsne.get_agsne_lambdas(G, S, N, E)
     theta_agsne = mete_distributions.theta_agsne([G, S, N, E], [lambda1, beta, lambda3, agsne.agsne_lambda3_z(lambda1, beta, S) / lambda3])
     theta_asne = mete_distributions.theta_epsilon(S, N, E)
-    if model == 'ssnt_0': alpha = 1
-    elif model == 'ssnt_1': alpha = 2/3
+    if model == 'ssnt_1': alpha = 2/3
+    else: alpha = 1
     par = N / (sum(scaled_d ** alpha) - N)
     iisd_ssnt = ssnt_isd_bounded(alpha, par)
    
