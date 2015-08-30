@@ -187,7 +187,7 @@ def get_obs_pred_isd(raw_data_site, dataset_name, model, out_dir = './out_files/
     """
     G, S, N, E = get_GSNE(raw_data_site)
     if model == 'asne':  # Note both ASNE and AGSNE return values in diameter^2, which needs to be transformed back
-        pred = (wk.get_mete_pred_dbh2(range(1, N + 1), S, N, E)) ** 0.5
+        pred = wk.get_mete_pred_dbh2(range(1, N + 1), S, N, E) ** 0.5
     elif model == 'agsne': 
         pred = np.array(agsne.get_mete_agsne_isd(G, S, N, E)) ** 0.5
     else: 
@@ -199,7 +199,7 @@ def get_obs_pred_isd(raw_data_site, dataset_name, model, out_dir = './out_files/
         isd_ssnt = ssnt_isd_bounded(alpha, par)
         pred = np.array([isd_ssnt.ppf(q) for q in scaled_rank])
         
-    obs = np.sort(raw_data_site['dbh'] / min(raw_data_site['dbh']))[::-1]
+    obs = np.sort(raw_data_site['dbh'] / min(raw_data_site['dbh']))
     results = np.zeros((N, ), dtype = ('S15, f8, f8'))
     results['f0'] = np.array([raw_data_site['site'][0]] * N)
     results['f1'] = obs
