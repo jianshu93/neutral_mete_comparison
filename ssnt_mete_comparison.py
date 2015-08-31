@@ -465,10 +465,10 @@ def bootstrap_ISD(name_site_combo, model, in_dir = './data/', out_dir = './out_f
     out_list_ks = [dat_name, site, str(max(abs(emp_cdf - np.array([dist.cdf(x) for x in obs]))))]
     
     for i in range(Niter):
-            cdf_boot = sorted(stats.uniform.rvs(size = S))
-            if model in ['asne', 'agsne']: 
-                obs_boot = np.array([dist.ppf(x) for x in cdf_boot]) ** 0.5 # ASNE and AGSNE returns values in D^2 instead of D
-            else: obs_boot = np.array([dist.ppf(x) for x in cdf_boot])
+        cdf_boot = sorted(stats.uniform.rvs(size = N))
+        if model in ['asne', 'agsne']: 
+            obs_boot = np.array([dist.ppf(x) for x in cdf_boot]) ** 0.5 # ASNE and AGSNE returns values in D^2 instead of D
+        else: obs_boot = np.array([dist.ppf(x) for x in cdf_boot])
         out_list_rsquare.append(str(mtools.obs_pred_rsquare(np.log10(obs_boot), np.log10(pred))))
         out_list_ks.append(str(max(abs(emp_cdf - np.array(cdf_boot)))))
     
@@ -524,7 +524,7 @@ def bootstrap_SDR(name_site_combo, model, in_dir = './data/', out_dir = './out_f
             obs_boot = np.array([np.mean((dist.rvs(par[0], par[1], par[1])) ** 2) for par in par_list])
         out_list_rsquare.append(str(mtools.obs_pred_rsquare(np.log10(obs_boot), np.log10(pred))))
     
-    wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
+    wk.write_to_file(out_dir + 'SDR_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
             
 def plot_bootstrap(alpha = 1):
     """Similar to create_Fig_E2() in working_functions.
