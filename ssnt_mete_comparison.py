@@ -372,57 +372,54 @@ def plot_likelihood_comp(lik_1, lik_2, xlabel, ylabel, annotate = True, ax = Non
                      xycoords = 'axes fraction', fontsize = 7)
     return ax
 
-def get_sample_stats_sad_ssnt(obs, pred, p):
-    """The SSNT version of get_sample_stats_sad()"""
-    dat_rsquare = mtools.obs_pred_rsquare(np.log10(obs), np.log10(pred))
-    dat_loglik = sum(np.log([stats.logser.pmf(x, p) for x in obs]))
-    emp_cdf = mtools.get_emp_cdf(obs)
-    dat_ks = max(abs(emp_cdf - np.array([stats.logser.cdf(x, p) for x in obs])))
-    return dat_rsquare, dat_loglik, dat_ks
-
-def bootstrap_SAD_SSNT(dat_name, cutoff = 9, Niter = 500):
-    """Compare the goodness of fit of the empirical SAD to 
+def bootstrap_SAD(name_site_combo, model, in_dir = './data/', out_dir = './out_files/', Niter = 200):
+    """A general function of bootstrapping for SAD applying to all four models. 
     
-    that of the boostrapped samples from the proposed SSNT distribution.
-    Note that both versions of the SSNT predict the same form for the SAD and 
-    thus are not distinguished here.
     Inputs:
-    dat_name - name of study
-    cutoff - minimum number of species required to run - 1
+    name_site_combo: a list with dat_name and site
+    model - takes one of four values 'ssnt_0', 'ssnt_1', 'asne', or 'agsne'
+    in_dir - directory of raw data
+    out_dir - directory used both in input (obs_pred.csv file) and output 
     Niter - number of bootstrap samples
+    
+    Output:
+    Writes to disk, with one file for R^2 and one for KS statistic.
+    
     """
-    dat = wk.import_raw_data('./data/' + dat_name + '.csv')
-    site_list = np.unique(dat['site'])
-    dat_obs_pred = wk.import_obs_pred_data('./out_files/' + dat_name + '_obs_pred_rad_ssnt.csv')
-        
-    for site in site_list:
-        out_list_rsquare, out_list_loglik, out_list_ks = [dat_name, site], [dat_name, site], [dat_name, site]
-        dat_site = dat[dat['site'] == site]
-        S_list = set(dat_site['sp'])
-        S0 = len(S_list)
-        if S0 > cutoff:
-            N0 = len(dat_site)
-            beta = mete.get_beta(S0, N0, version = 'untruncated')
-            
-            dat_site_obs_pred = dat_obs_pred[dat_obs_pred['site'] == site]
-            dat_site_obs = dat_site_obs_pred['obs']
-            dat_site_pred = dat_site_obs_pred['pred']
-            
-            emp_rsquare, emp_loglik, emp_ks = get_sample_stats_sad_ssnt(dat_site_obs, dat_site_pred, np.exp(-beta))
-            out_list_rsquare.append(emp_rsquare)
-            out_list_loglik.append(emp_loglik)
-            out_list_ks.append(emp_ks)
-            
-            for i in range(Niter):
-                sample_i = sorted(stats.logser.rvs(np.exp(-beta), size = S0), reverse = True)
-                sample_rsquare, sample_loglik, sample_ks = get_sample_stats_sad_ssnt(sample_i, dat_site_pred, np.exp(-beta))
-                out_list_rsquare.append(sample_rsquare)
-                out_list_loglik.append(sample_loglik)
-                out_list_ks.append(sample_ks)
-  
-            wk.write_to_file('./out_files/SAD_bootstrap_SSNT_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
-            wk.write_to_file('./out_files/SAD_bootstrap_SSNT_loglik.txt', ",".join(str(x) for x in out_list_loglik))
-            wk.write_to_file('./out_files/SAD_bootstrap_SSNT_ks.txt', ",".join(str(x) for x in out_list_ks))
+    dat_name, site = name_site_combo
+    dat = wk.import_raw_data(in_dir + dat_name + '.csv')
+    dat_site = dat[dat['site'] == site]
+    dat_clean = clean_data_agsne(dat_site)    
+    G, S, N, E = get_GSNE(dat_clean)
+    beta_ssnt = mete.get_beta(S, N, version = 'untruncated')
+    beta_asne = mete.get_beta(S, N)
+    lambda1, beta, lambda3 = agsne.get_agsne_lambdas(G, S, N, E)
+    sad_agsne = mete_distributions.sad_agsne([G, S, N, E], [lambda1, beta, lambda3, agsne.agsne_lambda3_z(lambda1, beta, S) / lambda3])
+    dist_for_model = {'ssnt_0': stats.logser(np.exp(-beta_ssnt)), 
+                      'ssnt_1': stats.logser(np.exp(-beta_ssnt)), 
+                      'asne': md.trunc_logser(np.exp(-beta_asne), N),
+                      'agsne': sad_agsne}
+    dist = dist_for_model[model]
+    pred_obs = wk.import_obs_pred_data(out_dir + dat_name + '_obs_pred_rad_' + model + '.csv')
+    pred = pred_obs[pred_obs['site'] == site]['pred'][::-1]
+    obs = pred_obs[pred_obs['site'] == site]['obs'][::-1]
+    
+    out_list_rsquare = [dat_name, site, str(mtools.obs_pred_rsquare(np.log10(obs), np.log10(pred)))]
+    emp_cdf = wk.get_obs_cdf(obs)
+    out_list_ks = [dat_name, site, str(max(abs(emp_cdf - np.array([dist.cdf(x) for x in obs]))))]
+    
+    for i in range(Niter):
+        if model in ['agsne', 'asne']:
+            obs_boot = np.array(sorted(dist.rvs(S)))
+            cdf_boot = np.array([dist.cdf(x) for x in obs_boot])
+        else:
+            cdf_boot = sorted(stats.uniform.rvs(size = S))
+            obs_boot = np.array([dist.ppf(x) for x in cdf_boot])
+        out_list_rsquare.append(str(mtools.obs_pred_rsquare(np.log10(obs_boot), np.log10(pred))))
+        out_list_ks.append(str(max(abs(emp_cdf - np.array(cdf_boot)))))
+    
+    wk.write_to_file(out_dir + 'SAD_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
+    wk.write_to_file(out_dir + 'SAD_bootstrap_' + model + '_ks.txt', ",".join(str(x) for x in out_list_ks))
 
 def get_sample_stats_isd_ssnt(obs, pred, dist):
     """Equivalent to get_sample_stats_isd() in module working_functions"""
