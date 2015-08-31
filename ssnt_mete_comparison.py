@@ -475,107 +475,56 @@ def bootstrap_ISD(name_site_combo, model, in_dir = './data/', out_dir = './out_f
     wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
     wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_ks.txt', ",".join(str(x) for x in out_list_ks))
     
-def get_sample_stats_isd_ssnt(obs, pred, dist):
-    """Equivalent to get_sample_stats_isd() in module working_functions"""
-    dat_rsquare = mtools.obs_pred_rsquare(np.log10(obs), np.log10(pred))
-    dat_loglik = sum(np.log([dist.pdf(x) for x in obs]))
-    dat_cdf = mtools.get_emp_cdf(obs)
-    dat_ks = max(abs(dat_cdf - np.array([dist.cdf(x) for x in obs])))
-    return dat_rsquare, dat_loglik, dat_ks
-
-def bootstrap_ISD_SDR_iISD_SSNT(dat_name, alpha = 1, cutoff = 9, Niter = 500):
-    """Compare the goodness of fit of the size-related patterns (ISD, iISD & SDR) to 
-    
-    that of the boostrapped samples from the proposed SSNT distributions.
+def bootstrap_SDR(name_site_combo, model, in_dir = './data/', out_dir = './out_files/', Niter = 200):
+    """A general function of bootstrapping for ISD applying to all four models. 
     
     Inputs:
-    dat_name - name of study
-    cutoff - minimum number of species required to run - 1
+    name_site_combo: a list with dat_name and site
+    model - takes one of four values 'ssnt_0', 'ssnt_1', 'asne', or 'agsne'
+    in_dir - directory of raw data
+    out_dir - directory used both in input (obs_pred.csv file) and output 
     Niter - number of bootstrap samples
+    
+    Output:
+    Writes to one file on disk for R^2.
+    
     """
-    dat = wk.import_raw_data('./data/' + dat_name + '.csv')
-    site_list = np.unique(dat['site'])
-    dat_obs_pred_isd = wk.import_obs_pred_data('./out_files/' + dat_name + '_' + str(round(alpha, 2)) + '.csv')
-    dat_obs_pred_sdr = wk.import_obs_pred_data('./out_files/' + dat_name + '_' + str(round(alpha, 2)) + '_obs_pred_sdr.csv')
-    dat_obs_pred_iisd = wk.import_obs_pred_data('./out_files/' + dat_name + '_' + str(round(alpha, 2)) + '_obs_pred_iisd.csv')                                            
-
-    if not os.path.exists('./out_files/iISD_bootstrap_ks/SSNT_' + str(round(alpha, 2)) + '/'):
-        os.makedirs('./out_files/iISD_bootstrap_ks/SSNT_' + str(round(alpha, 2)) + '/')
-                
-    for site in site_list:
-        dat_site = dat[dat['site'] == site]
-        S_list = np.unique(dat_site['sp'])
-        S0 = len(S_list)
-        if S0 > cutoff:
-            N0 = len(dat_site)
-            dbh_raw = dat_site['dbh']
-            dbh_scaled = np.array(dbh_raw / min(dbh_raw))
-            par = N0 / (sum(dbh_scaled ** alpha) - N0)
-            isd_ssnt = ssnt_isd_bounded(alpha, par)
-             
-            dat_site_obs_pred_isd = dat_obs_pred_isd[dat_obs_pred_isd['site'] == site]
-            dat_site_obs_pred_sdr = dat_obs_pred_sdr[dat_obs_pred_sdr['site'] == site]
-            dat_site_obs_pred_iisd = dat_obs_pred_iisd[dat_obs_pred_iisd['site'] == site]
-            
-            emp_isd_rsquare, emp_isd_loglik, emp_isd_ks = get_sample_stats_isd_ssnt(dat_site_obs_pred_isd['obs'], \
-                                                                                    dat_site_obs_pred_isd['pred'], isd_ssnt)
-            emp_sdr_rsquare = mtools.obs_pred_rsquare(np.log10(dat_site_obs_pred_sdr['obs']), \
-                                                      np.log10(dat_site_obs_pred_sdr['pred']))
-            emp_iisd_rsquare = mtools.obs_pred_rsquare(np.log10(dat_site_obs_pred_iisd['obs']), \
-                                                       np.log10(dat_site_obs_pred_iisd['pred']))
-           
-            out_list_isd_rsquare = [dat_name, site, emp_isd_rsquare]
-            out_list_isd_loglik = [dat_name, site, emp_isd_loglik]
-            out_list_isd_ks = [dat_name, site, emp_isd_ks]
-            out_list_sdr_rsquare = [dat_name, site, emp_sdr_rsquare]
-            out_list_iisd_rsquare = [dat_name, site, emp_iisd_rsquare]
-            
-            emp_ks_list = []
-            n_list = []
-            for i, sp in enumerate(S_list):
-                dbh_site_sp = dbh_scaled[dat_site['sp'] == sp]
-                n_sp = len(dbh_site_sp)
-                n_list.append(n_sp)
-                
-                emp_cdf = mtools.get_emp_cdf(dbh_site_sp)
-                ks_sp = max(abs(emp_cdf - np.array([isd_ssnt.cdf(x) for x in dbh_site_sp])))
-                emp_ks_list.append(ks_sp)
-            
-            out_ks_site = './out_files/iISD_bootstrap_ks/SSNT_' + str(round(alpha, 2)) + \
-                '/iISD_bootstrap_ks_' + dat_name + '_' + str(round(alpha, 2)) + '_' + site + '.txt'
-            wk.write_to_file(out_ks_site, ",".join(str(x) for x in n_list)) 
-            wk.write_to_file(out_ks_site, ",".join(str(x) for x in emp_ks_list)) 
-            
-            for i in range(Niter):
-                # Generate a sample from the predicte ISD
-                rand_q = stats.uniform.rvs(size = N0)
-                sim_ISD = np.array([isd_ssnt.ppf(x) for x in rand_q])
-                sim_isd_rsquare, sim_isd_loglik, sim_isd_ks = get_sample_stats_isd_ssnt(np.sort(sim_ISD), \
-                                                                                                   dat_site_obs_pred_isd['pred'], isd_ssnt)
-                out_list_isd_rsquare.append(sim_isd_rsquare)
-                out_list_isd_loglik.append(sim_isd_loglik)
-                out_list_isd_ks.append(sim_isd_ks)
-                
-                sim_sdr_list, sim_ks_list, sim_iisd_list = [], [], []
-                for i, sp in enumerate(S_list):
-                    dbh_site_sp_sim = sim_ISD[dat_site['sp'] == sp]
-                    sim_sdr_list.append(sum([x ** 2 for x in dbh_site_sp_sim]) / len(dbh_site_sp_sim))
-                    sim_iisd_list.extend(sorted(dbh_site_sp_sim))
-                    sim_cdf = mtools.get_emp_cdf(dbh_site_sp_sim)
-                    ks_sp_sim = max(abs(sim_cdf - np.array([isd_ssnt.cdf(x) for x in dbh_site_sp_sim])))
-                    sim_ks_list.append(ks_sp_sim)
-                    
-                wk.write_to_file(out_ks_site, ",".join(str(x) for x in sim_ks_list))
-                out_list_iisd_rsquare.append(mtools.obs_pred_rsquare(np.log10(sim_iisd_list), \
-                                                                     np.log10(dat_site_obs_pred_iisd['pred'])))
-                out_list_sdr_rsquare.append(mtools.obs_pred_rsquare(np.log10(sim_sdr_list), \
-                                                                    np.log10(dat_site_obs_pred_sdr['pred'])))
-            
-            wk.write_to_file('./out_files/ISD_bootstrap_rsquare_' + str(round(alpha, 2)) + '.txt', ",".join(str(x) for x in out_list_isd_rsquare))
-            wk.write_to_file('./out_files/ISD_bootstrap_loglik_' + str(round(alpha, 2)) + '.txt', ",".join(str(x) for x in out_list_isd_loglik))
-            wk.write_to_file('./out_files/ISD_bootstrap_ks_' + str(round(alpha, 2)) + '.txt', ",".join(str(x) for x in out_list_isd_ks))
-            wk.write_to_file('./out_files/SDR_bootstrap_rsquare_' + str(round(alpha, 2)) + '.txt', ",".join(str(x) for x in out_list_sdr_rsquare))
-            wk.write_to_file('./out_files/iISD_bootstrap_rsquare_' + str(round(alpha, 2)) + '.txt', ",".join(str(x) for x in out_list_iisd_rsquare))
+    dat_name, site = name_site_combo
+    dat = wk.import_raw_data(in_dir + dat_name + '.csv')
+    dat_site = dat[dat['site'] == site]
+    dat_clean = clean_data_agsne(dat_site)    
+    G, S, N, E = get_GSNE(dat_clean)
+    lambda1, beta, lambda3 = agsne.get_agsne_lambdas(G, S, N, E)
+    
+    par_list = []
+    for sp in np.unique(dat_clean['sp']):
+        dat_sp = dat_clean[dat_clean['sp'] == sp]
+        n = len(dat_sp)
+        m = len(np.unique(dat_sp['genus']))
+        par_list.append([m, n])
+        
+    pred_obs = wk.import_obs_pred_data(out_dir + dat_name + '_obs_pred_sdr_' + model + '.csv')
+    pred = pred_obs[pred_obs['site'] == site]['pred']
+    obs = pred_obs[pred_obs['site'] == site]['obs'] 
+    out_list_rsquare = [dat_name, site, str(mtools.obs_pred_rsquare(np.log10(obs), np.log10(pred)))]
+    
+    iisd_agsne = mete_distributions.theta_agsne([G, S, N, E], [lambda1, beta, lambda3, agsne.agsne_lambda3_z(lambda1, beta, S) / lambda3])
+    iisd_asne = mete_distributions.theta_epsilon(S, N, E)
+    dbh_scaled = np.array(dat_clean['dbh'] / min(dat_clean['dbh']))
+    iisd_ssnt_0 = ssnt_isd_bounded(1, N / (sum(dbh_scaled ** 1) - N))
+    iisd_ssnt_1 = ssnt_isd_bounded(2/3, N / (sum(dbh_scaled ** (2/3)) - N))
+    dist_for_model = {'ssnt_0': iisd_ssnt_0, 'ssnt_1': iisd_ssnt_1, 'asne': iisd_asne, 'agsne': iisd_agsne}
+    dist = dist_for_model[model]
+        
+    for i in range(Niter):
+        if model in ['ssnt_0', 'ssnt_1']: obs_boot = np.array([np.mean((dist.rvs(par[1])) ** 2) for par in par_list]) # Here par[1] is n for each species
+        elif model == 'asne': 
+            obs_boot = np.array([np.mean((dist.rvs(par[1], par[1])) ** 2) for par in par_list])
+        else:
+            obs_boot = np.array([np.mean((dist.rvs(par[0], par[1], par[1])) ** 2) for par in par_list])
+        out_list_rsquare.append(str(mtools.obs_pred_rsquare(np.log10(obs_boot), np.log10(pred))))
+    
+    wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
             
 def plot_bootstrap(alpha = 1):
     """Similar to create_Fig_E2() in working_functions.
