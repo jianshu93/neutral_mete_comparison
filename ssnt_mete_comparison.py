@@ -13,6 +13,7 @@ import mete_distributions
 import mete_agsne as agsne
 import macroecotools as mtools
 import macroeco_distributions as md
+import multiprocessing
 
 class ssnt_isd_bounded():
     """The individual-size distribution predicted by SSNT.
@@ -173,6 +174,13 @@ def get_obs_pred_sad(raw_data_site, dataset_name, model, out_dir = './out_files/
     f1.writerows(results)
     f1_write.close()
 
+def get_mete_pred_isd_approx(S, N, E):
+    """Obtain the dbh2 for N individuals predicted by METE, using the newly derived approximated ISD."""
+    psi_appox = mete_distributions.psi_epsilon_approx(S, N, E)
+    scaled_rank = [(x + 0.5) / N for x in range(N)]
+    pred = np.array([psi_appox.ppf(q) for q in scaled_rank])
+    return np.array(pred)
+
 def get_obs_pred_isd(raw_data_site, dataset_name, model, out_dir = './out_files/'):
     """Write the observed and predicted ISD to file for a given model.
     
@@ -187,7 +195,7 @@ def get_obs_pred_isd(raw_data_site, dataset_name, model, out_dir = './out_files/
     """
     G, S, N, E = get_GSNE(raw_data_site)
     if model == 'asne':  # Note both ASNE and AGSNE return values in diameter^2, which needs to be transformed back
-        pred = wk.get_mete_pred_dbh2(range(1, N + 1), S, N, E) ** 0.5
+        pred = get_mete_pred_isd_approx(S, N, E) ** 0.5
     elif model == 'agsne': 
         pred = np.array(agsne.get_mete_agsne_isd(G, S, N, E)) ** 0.5
     else: 
@@ -420,6 +428,97 @@ def bootstrap_SAD(name_site_combo, model, in_dir = './data/', out_dir = './out_f
     
     wk.write_to_file(out_dir + 'SAD_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
     wk.write_to_file(out_dir + 'SAD_bootstrap_' + model + '_ks.txt', ",".join(str(x) for x in out_list_ks))
+
+def bootstrap_ISD(name_site_combo, model, in_dir = './data/', out_dir = './out_files/', Niter = 200):
+    """A general function of bootstrapping for ISD applying to all four models. 
+    
+    Inputs:
+    name_site_combo: a list with dat_name and site
+    model - takes one of four values 'ssnt_0', 'ssnt_1', 'asne', or 'agsne'
+    in_dir - directory of raw data
+    out_dir - directory used both in input (obs_pred.csv file) and output 
+    Niter - number of bootstrap samples
+    
+    Output:
+    Writes to disk, with one file for R^2 and one for KS statistic.
+    
+    """
+    dat_name, site = name_site_combo
+    dat = wk.import_raw_data(in_dir + dat_name + '.csv')
+    dat_site = dat[dat['site'] == site]
+    dat_clean = clean_data_agsne(dat_site)    
+    G, S, N, E = get_GSNE(dat_clean)
+    lambda1, beta, lambda3 = agsne.get_agsne_lambdas(G, S, N, E)
+    isd_agsne = mete_distributions.psi_agsne([G, S, N, E], [lambda1, beta, lambda3, agsne.agsne_lambda3_z(lambda1, beta, S) / lambda3])
+    isd_asne = mete_distributions.psi_epsilon(S, N, E)
+    dbh_scaled = np.array(dat_clean['dbh'] / min(dat_clean['dbh']))
+    isd_ssnt_0 = ssnt_isd_bounded(1, N / (sum(dbh_scaled ** 1) - N))
+    isd_ssnt_1 = ssnt_isd_bounded(2/3, N / (sum(dbh_scaled ** (2/3)) - N))
+    dist_for_model = {'ssnt_0': isd_ssnt_0, 'ssnt_1': isd_ssnt_1, 'asne': isd_asne, 'agsne': isd_agsne}
+    dist = dist_for_model[model]
+    pred_obs = wk.import_obs_pred_data(out_dir + dat_name + '_obs_pred_isd_' + model + '.csv')
+    pred = pred_obs[pred_obs['site'] == site]['pred']
+    obs = pred_obs[pred_obs['site'] == site]['obs']
+        
+    out_list_rsquare = [dat_name, site, str(mtools.obs_pred_rsquare(np.log10(obs), np.log10(pred)))]
+    write_to_file(out_dir + 'ISD_bootstrap_' + model + '_rsquare.txt', ",".join([dat_name, site, str(emp_rsquare)]), new_line = False)
+    emp_cdf = wk.get_obs_cdf(obs)
+    out_list_ks = [dat_name, site, str(max(abs(emp_cdf - np.array([dist.cdf(x) for x in obs]))))]
+     
+    dat = import_raw_data('./data/' + dat_name + '.csv')
+    site_list = np.unique(dat['site'])
+    dat_obs_pred = import_obs_pred_data('./out_files/' + dat_name + '_obs_pred_isd_dbh2.csv')
+        
+    for site in site_list:
+        dat_site = dat[dat['site'] == site]
+        S_list = set(dat_site['sp'])
+        S0 = len(S_list)
+        if S0 > cutoff:
+            N0 = len(dat_site)
+            dbh_scale = np.array(dat_site['dbh'] / min(dat_site['dbh']))
+            dbh2_scale = dbh_scale ** 2
+            E0 = sum(dbh2_scale)
+            psi = psi_epsilon(S0, N0, E0)
+            
+            dat_site_obs_pred = dat_obs_pred[dat_obs_pred['site'] == site]
+            dat_site_obs = dat_site_obs_pred['obs']
+            dat_site_pred = dat_site_obs_pred['pred']
+            
+            emp_rsquare, emp_loglik = get_sample_stats_isd(dat_site_obs, dat_site_pred, psi)
+            emp_cdf = macroecotools.get_emp_cdf(dat_site_obs)
+            emp_ks = max(abs(emp_cdf - np.array([psi.cdf(x) for x in dat_site_obs])))
+            
+            del dbh_scale, dbh2_scale, dat_site_obs 
+            
+            write_to_file('./out_files/ISD_bootstrap_rsquare.txt', ",".join([dat_name, site, str(emp_rsquare)]), new_line = False)
+            write_to_file('./out_files/ISD_bootstrap_loglik.txt', ",".join([dat_name, site, str(emp_loglik)]), new_line = False)
+            write_to_file('./out_files/ISD_bootstrap_ks.txt', ",".join([dat_name, site, str(emp_ks)]), new_line = False)
+            
+            num_pools = 8  # Assuming that 8 pools are to be created
+            for i in xrange(Niter):
+                sample_i = []
+                cdf_i = []
+                while len(sample_i) < N0:
+                    pool = multiprocessing.Pool(num_pools)
+                    out_sample = pool.map(generate_isd_sample, [psi for j in xrange(num_pools)])
+                    for combo in out_sample:
+                        cdf_sublist, sample_sublist = combo
+                        sample_i.extend(sample_sublist)
+                        cdf_i.extend(cdf_sublist)
+                    pool.close()
+                    pool.join()
+                sample_i = sorted(sample_i[:N0])
+                sample_rsquare, sample_loglik = get_sample_stats_isd(sample_i, dat_site_pred, psi)
+                cdf_i = sorted(cdf_i[:N0])
+                sample_ks = max([abs(x - (i+1)/N0) for i, x in enumerate(cdf_i)])
+                
+                write_to_file('./out_files/ISD_bootstrap_rsquare.txt', "".join([',', str(sample_rsquare)]), new_line = False)
+                write_to_file('./out_files/ISD_bootstrap_loglik.txt', "".join([',', str(sample_loglik)]), new_line = False)
+                write_to_file('./out_files/ISD_bootstrap_ks.txt', "".join([',', str(sample_ks)]), new_line = False)
+            
+            write_to_file('./out_files/ISD_bootstrap_rsquare.txt', '\t')
+            write_to_file('./out_files/ISD_bootstrap_loglik.txt', '\t')
+            write_to_file('./out_files/ISD_bootstrap_ks.txt', '\t')
 
 def get_sample_stats_isd_ssnt(obs, pred, dist):
     """Equivalent to get_sample_stats_isd() in module working_functions"""
