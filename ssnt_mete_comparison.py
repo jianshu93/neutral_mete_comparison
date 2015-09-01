@@ -526,64 +526,32 @@ def bootstrap_SDR(name_site_combo, model, in_dir = './data/', out_dir = './out_f
     
     wk.write_to_file(out_dir + 'SDR_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
             
-def plot_bootstrap(alpha = 1):
-    """Similar to create_Fig_E2() in working_functions.
+def plot_bootstrap(dat_list, Niter = 500, out_file_dir = './out_files/', out_fig_dir = './out_figs/'):
+    """Plot the bootstrap results for the a given model and the three patterns (SAD, ISD, SDR). 
     
-    Add input "alpha" to adapt to output files for different transformations.
+    The output is a 3*2 plot (with the last subplot missing) with name bootstrap_model.pdf.
     
     """
-    fig = plt.figure(figsize = (7, 14))
-    sad_r2 = wk.import_bootstrap_file('./out_files/SAD_bootstrap_SSNT_rsquare.txt', Niter = 200)
-    ax_1 = plt.subplot(421)
-    wk.plot_hist_quan(sad_r2, ax = ax_1)
-    plt.xlabel('Quantile', fontsize = 8)
-    plt.ylabel('Frequency', fontsize = 8)
-    plt.title(r'SAD, $R^2$', fontsize = 10)
- 
-    sad_ks = wk.import_bootstrap_file('./out_files/SAD_bootstrap_SSNT_ks.txt', Niter = 200)
-    ax_2 = plt.subplot(422)
-    wk.plot_hist_quan(sad_ks, dat_type = 'ks', ax = ax_2)
-    plt.xlabel('Quantile', fontsize = 8)
-    plt.ylabel('Frequency', fontsize = 8)
-    plt.title('SAD, K-S Statistic', fontsize = 10)
- 
-    isd_r2 = wk.import_bootstrap_file('./out_files/ISD_bootstrap_rsquare_' + str(round(alpha, 2)) + '.txt', Niter = 200)
-    ax_3 = plt.subplot(423)
-    wk.plot_hist_quan(isd_r2, ax = ax_3)
-    plt.xlabel('Quantile', fontsize = 8)
-    plt.ylabel('Frequency', fontsize = 8)
-    plt.title(r'ISD, $R^2$', fontsize = 10)
- 
-    isd_ks = wk.import_bootstrap_file('./out_files/ISD_bootstrap_ks_' + str(round(alpha, 2)) + '.txt', Niter = 200)
-    ax_4 = plt.subplot(424)
-    wk.plot_hist_quan(isd_ks, dat_type = 'ks', ax = ax_4)
-    plt.xlabel('Quantile', fontsize = 8)
-    plt.ylabel('Frequency', fontsize = 8)
-    plt.title('ISD, K-S Statistic', fontsize = 10)
+    patterns = ['SAD', 'ISD', 'SDR']
+    stats = ['rsquare', 'ks']
+    titles = [r'$R^2$', 'K-S Statistic']
+    fig = plt.figure(figsize = (5, 8))
+    for iplot in range(5):
+        pattern = patterns[int(iplot / 3)]
+        stat = stats[iplot % 2]
+        boot_dir = out_file_dir + pattern + '_bootstrap_' + model + '_' + stat + '.txt'
+        boot_out = wk.import_bootstrap_file(boot_dir, Niter = Niter)
+        ax = plt.subplot(3, 2, iplot + 1)
+        wk.plot_hist_quan(boot_out, ax = ax)
+        plt.xlabel('Quantile', fontsize = 8)
+        plt.ylabel('Frequency', fontsize = 8)
+        if iplot in [0, 1]: ax.set_title(titles[iplot], size = 14,y = 1.1)
+        if iplot in [0, 2, 4]: ax.set_ylabel(patterns[int(iplot / 2)], labelpad = 10, size = 14, rotation = 0)
 
-    iisd_r2 = wk.import_bootstrap_file('./out_files/iISD_bootstrap_rsquare_' + str(round(alpha, 2)) + '.txt', Niter = 200)
-    ax_5 = plt.subplot(425)
-    wk.plot_hist_quan(iisd_r2, ax = ax_5)
-    plt.xlabel('Quantile', fontsize = 8)
-    plt.ylabel('Frequency', fontsize = 8)
-    plt.title(r'iISD, $R^2$', fontsize = 10)
-   
-    ax_6 = plt.subplot(426)
-    wk.plot_hist_quan_iisd_ks('./out_files/iISD_bootstrap_ks/SSNT_' + str(round(alpha, 2)) + '/', ax = ax_6)
-    plt.xlabel('Quantile', fontsize = 8)
-    plt.ylabel('Frequency', fontsize = 8)
-    plt.title('iISD, K-S Statistic', fontsize = 10)
+    plt.subplots_adjust(left = 0.18, wspace = 0.3, hspace = 0.3)
+    plt.tight_layout()
+    plt.savefig(out_fig_dir + 'bootstrap_' + model + '.pdf', dpi = 400)
     
-    sdr_r2 = wk.import_bootstrap_file('./out_files/SDR_bootstrap_rsquare_' + str(round(alpha, 2)) + '.txt', Niter = 200)
-    ax_7 = plt.subplot(427)
-    wk.plot_hist_quan(sdr_r2, ax = ax_7)
-    plt.xlabel('Quantile', fontsize = 8)
-    plt.ylabel('Frequency', fontsize = 8)
-    plt.title(r'SDR, $R^2$', fontsize = 10)
-   
-    plt.subplots_adjust(wspace = 0.29, hspace = 0.29)
-    plt.savefig('Bootstrap_SSNT_' + str(round(alpha, 2)) + '_200.pdf', dpi = 600)
-
 def plot_obs_pred_four_models(dat_list, out_file_dir = './out_files/', out_fig_dir = './out_figs/'):
     """Create the obs-pred plots for the three patterns (SAD, ISD, and SDR) and four models.
     
@@ -610,8 +578,7 @@ def plot_obs_pred_four_models(dat_list, out_file_dir = './out_files/', out_fig_d
             ax.set_xlabel(xlab, labelpad = 4, size = 8)
             ax.set_ylabel(ylab, labelpad = 4, size = 8)
             if iplot in [1, 2, 3]:  ax.set_title(pattern_names[iplot - 1], size = 14,y = 1.1)
-            if iplot in [1, 4, 7, 10]: 
-                model_lab = ax.set_ylabel(model_names[int(iplot / 3)], labelpad = 10, size = 14, rotation = 0)
+            if iplot in [1, 4, 7, 10]: ax.set_ylabel(model_names[int(iplot / 3)], labelpad = 10, size = 14, rotation = 0)
             iplot += 1
     plt.subplots_adjust(left = 0.18, wspace = 0.3, hspace = 0.3)
     plt.tight_layout()
