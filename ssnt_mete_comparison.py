@@ -13,7 +13,6 @@ import mete_distributions
 import mete_agsne as agsne
 import macroecotools as mtools
 import macroeco_distributions as md
-import multiprocessing
 
 class ssnt_isd_bounded():
     """The individual-size distribution predicted by SSNT.
@@ -58,7 +57,7 @@ class ssnt_isd_bounded():
 def import_likelihood_data(file_name, file_dir = './out_files/'):
     """Import file with likelihood for METE, SSNT, and transformed SSNT"""
     data = np.genfromtxt(file_dir + file_name, dtype = 'S15, S15, f15, f15, f15', 
-                         names = ['study', 'site', 'METE', 'SSNT', 'SSNT_transform'], delimiter = ' ')
+                         names = ['study', 'site', 'ASNE', 'AGSNE', 'SSNT_D', 'SSNT_M'], delimiter = ' ')
     return data
 
 def clean_data_agsne(raw_data_site, cutoff_genera = 4, cutoff_sp = 9, max_removal = 0.1):
@@ -102,42 +101,64 @@ def get_GSNE(raw_data_site):
     E = sum((raw_data_site['dbh'] / min(raw_data_site['dbh'])) ** 2)
     return G, S, N, E
     
-def lik_sp_abd_dbh_ssnt(sad_par, isd_dist, n, dbh_list, log = True):
+def lik_sp_abd_dbh_ssnt(stat_var, beta, model, n, dbh_list, log = True):
     """Probability of a species having abundance n and its individuals having dbh [d1, d2, ..., d_n] in SSNT
     
     Inputs:
-    sad_par - parameter of the predicted SAD (untruncated logseries)
-    isd_dist - predicted distribution of the ISD
+    stat_var - [G, S, N, E]
+    beta - parameter for SAD
+    model - 'ssnt_0', or 'ssnt_1'
     n - abundance
     dbh_list - a list or array of length n with scaled dbh values
     """
-    p_sad_log = stats.logser.logpmf(n, sad_par)
-    p_dbh = [isd_dist.pdf(dbh) for dbh in dbh_list]
+    G, S, N, E = stat_var
+    alpha_model = {'ssnt_0': 1, 'ssnt_1': 2/3}
+    alpha = alpha_model[model]
+    par = N / (sum(np.array(dbh_list)**alpha) - N)
+    p_sad_log = stats.logser.logpmf(n, beta)
+    isd = ssnt_isd_bounded(alpha, par)
+    p_dbh = [isd.pdf(d) for d in dbh_list]
     if log: return p_sad_log + sum([np.log(p_ind) for p_ind in p_dbh])
-    else: 
-        p_iisd = 1
-        for p_ind in p_dbh: p_iisd *= p_ind
-        return np.exp(p_sad_log) * p_iisd
+    else: return np.exp(p_sad_log + sum([np.log(p_ind) for p_ind in p_dbh]))
     
-def lik_sp_abd_dbh_mete(sad_par, sad_upper, iisd_dist, n, dbh_list, log = True):
+def lik_sp_abd_dbh_asne(stat_var, beta, n, dbh_list, log = True):
     """Probability of a species having abundance n and its individuals having dbh [d1, d2, ..., d_n] in METE
     
     Here unlike SSNT, P(d|n) is not equal to the ISD f(d). 
     Inputs:
-    sad_par - parameter of the predicted SAD (upper-truncated logseries)
-    sad_upper - upper bounded of the predicted SAD
-    isd_dist - predicted iISD given n (theta_epsilon)
-    n - abundance
+    stat_var - [G, S, N, E]
+    beta - parameter for SAD
+    n - abundance of the species
     dbh_list - a list or array of length n with scaled dbh values
     """
-    p_sad_log = md.trunc_logser.logpmf(n, sad_par, sad_upper)
-    p_dbh_log = [iisd_dist.logpdf(dbh ** 2, n) + np.log(2 * dbh) for dbh in dbh_list] # Prediction of METE has to be transformed back to distribution of dbh
+    G, S, N, E = stat_var
+    p_sad_log = md.trunc_logser.logpmf(n, beta, N)
+    theta = mete_distributions.theta_epsilon(S, N, E)
+    p_dbh_log = [theta.logpdf(d ** 2, n) + np.log(2 * d) for d in dbh_list] # Prediction of METE has to be transformed back to distribution of dbh
     if log: return p_sad_log + sum(p_dbh_log)
-    else: 
-        p_iisd = 1
-        for p_ind in p_dbh_log: p_iisd *= np.exp(p_ind)
-        return np.exp(p_sad_log) * p_iisd
+    else: return np.exp(p_sad_log + sum(p_dbh_log))
 
+def lik_sp_abd_dbh_agsne(stat_var, pars, n, dbh_list, log = True):
+    """Probability of a species having abundance n and its individuals having dbh [d1, d2, ..., d_n] in AGSNE.
+
+    Inputs:
+    stat_var - [G, S, N, E]
+    pars - [lambda1, beta, lambda3, z] in AGSNE
+    n - abundance of the species
+    dbh_list - a list or array of length n with scaled dbh values
+    """
+    G, S, N, E = stat_var
+    lambda1, beta, lambda3, z = pars
+    sad = mete_distributions.sad_agsne(stat_var, pars)
+    logp = 0
+    for d in dbh_list:
+        t = np.exp(-(lambda1 + (beta - lambda1) * n + lambda3 * n * d ** 2))
+        logp_dn = np.log(G / S / z * 2 * d) + np.log(t) - 2 * np.log(1 - t) + np.log(1 - (S + 1) * t ** S + S * t ** (S + 1))
+        logp += logp_dn / np.log(sad.pmf(n))
+    logp += np.log(sad.pmf(n)) # Convert conditional distribution to joint distribution
+    if log == True: return logp
+    else: return np.exp(logp)
+    
 def get_obs_pred_sad(raw_data_site, dataset_name, model, out_dir = './out_files/'):
     """Write the observed and predicted RAD to file for a given model.
     
