@@ -584,3 +584,36 @@ def plot_bootstrap(alpha = 1):
     plt.subplots_adjust(wspace = 0.29, hspace = 0.29)
     plt.savefig('Bootstrap_SSNT_' + str(round(alpha, 2)) + '_200.pdf', dpi = 600)
 
+def plot_obs_pred_four_models(dat_list, out_file_dir = './out_files/', out_fig_dir = './out_figs/'):
+    """Create the obs-pred plots for the three patterns (SAD, ISD, and SDR) and four models.
+    
+    The output is a 4*3 plot with name obs_pred_3patterns_4models.pdf.
+    
+    """
+    dat_list_exist = [x for x in dat_list if os.path.isfile(out_file_dir + x + '_obs_pred_rad_asne.csv')]
+    model_list = ['asne', 'agsne', 'ssnt_0', 'ssnt_1']
+    pattern_list = ['rad', 'isd', 'sdr']
+    model_names = ['ASNE', 'AGSNE', 'SSNT_D', 'SSNT_M']
+    pattern_names = ['SAD', 'ISD', 'SDR']
+    xylabel = {'rad': ['Predicted abundance', 'Observed abundance'], 
+               'isd': ['Predicted diameter', 'Observed diameter'],
+               'sdr': ['Predicted average metabolic rate', 'Observed average metabolic rate']}
+    fig = plt.figure(figsize = (8, 10))
+    iplot = 1
+    for model in model_list:
+        for pattern in pattern_list:
+            filename = '_obs_pred_' + pattern + '_' + model + '.csv'
+            sites, obs, pred = wk.get_obs_pred_from_file(dat_list_exist,out_file_dir, filename)
+            ax = plt.subplot(4, 3, iplot)
+            ax = wk.plot_obs_pred(obs, pred, 2, True, ax = ax)
+            xlab, ylab = xylabel[pattern]
+            ax.set_xlabel(xlab, labelpad = 4, size = 8)
+            ax.set_ylabel(ylab, labelpad = 4, size = 8)
+            if iplot in [1, 2, 3]:  ax.set_title(pattern_names[iplot - 1], size = 14,y = 1.1)
+            if iplot in [1, 4, 7, 10]: 
+                model_lab = ax.set_ylabel(model_names[int(iplot / 3)], labelpad = 10, size = 14, rotation = 0)
+            iplot += 1
+    plt.subplots_adjust(left = 0.18, wspace = 0.3, hspace = 0.3)
+    plt.tight_layout()
+    plt.savefig(out_fig_dir + 'obs_pred_3patterns_4models.pdf', dpi = 400)
+            
