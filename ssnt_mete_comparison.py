@@ -323,63 +323,29 @@ def get_isd_lik_three_models(dat_list, out_dir = './out_files/', cutoff = 9):
                      str(mtools.AICc(lik_ssnt_transform, 2, N0))
                 out2.close()
                 
-def get_lik_sp_abd_dbh_three_models(dat_list, out_dir = './out_files/', cutoff = 9):
+def get_lik_sp_abd_dbh_four_models(raw_data_site, dataset_name, out_dir = './out_files/'):
     """Obtain the summed log likelihood of each species having abundance n and its individuals having 
     
     their specific dbh values for the three models METE, SSNT on D, and SSNT on D ** (2/3).
     
     """
-    for dat_name in dat_list:
-        dat = wk.import_raw_data('./data/' + dat_name + '.csv')
-        for site in np.unique(dat['site']):
-            dat_site = dat[dat['site'] == site]
-            S0 = len(np.unique(dat_site['sp']))
-            if S0 > cutoff:
-                N0 = len(dat_site)
-                dbh_scaled = dat_site['dbh'] / min(dat_site['dbh'])
-                theta = mete_distributions.theta_epsilon(S0, N0, sum(dbh_scaled ** 2))
-                lambda_mete = np.exp(-mete.get_beta(S0, N0))
-                lambda_ssnt = np.exp(-mete.get_beta(S0, N0, version = 'untruncated'))
-                ssnt_isd = ssnt_isd_bounded(1, N0 / (sum(dbh_scaled) - N0))
-                ssnt_isd_transform = ssnt_isd_bounded(2/3, N0 / (sum(dbh_scaled ** (2/3)) - N0))
-                
-                lik_mete, lik_ssnt, lik_ssnt_transform = 0, 0, 0
-                for sp in np.unique(dat_site['sp']):
-                    dbh_sp = dbh_scaled[dat_site['sp'] == sp]
-                    n_sp = len(dbh_sp)
-                    lik_mete += lik_sp_abd_dbh_mete(lambda_mete, N0, theta, n_sp, dbh_sp)
-                    lik_ssnt += lik_sp_abd_dbh_ssnt(lambda_ssnt, ssnt_isd, n_sp, dbh_sp)
-                    lik_ssnt_transform += lik_sp_abd_dbh_ssnt(lambda_ssnt, ssnt_isd_transform, n_sp, dbh_sp)
-                out = open(out_dir + 'lik_sp_abd_dbh_three_models.txt', 'a')
-                print>>out, dat_name, site, str(lik_mete), str(lik_ssnt), str(lik_ssnt_transform)
-                out.close()
-
-def plot_obs_pred_diameter(datasets, in_file_name, data_dir = './out_files/', ax = None, radius = 2, mete = False, title = None):
-    """Plot the observed vs predicted diamters across multiple datasets. Applies to both ISD and iISD."""
-    isd_sites, isd_obs, isd_pred = wk.get_obs_pred_from_file(datasets, data_dir, in_file_name)
-    if mete:
-        isd_obs = isd_obs ** 0.5
-        isd_pred = isd_pred ** 0.5
-    if not ax:
-        fig = plt.figure(figsize = (3.5, 3.5))
-        ax = plt.subplot(111)
-    wk.plot_obs_pred(isd_obs, isd_pred, radius, 1, ax = ax)
-    ax.set_xlabel('Predicted diameter', labelpad = 4, size = 8)
-    ax.set_ylabel('Observed diameter', labelpad = 4, size = 8)
-    if title: plt.title(title, fontsize = 10)
-    return ax
-
-def plot_obs_pred_sad_sdr(datasets, in_file_name, data_dir = "./out_files/", ax = None, radius =2, title = None, axis_lab = 'abundance'):
-    """Plot the observed vs predicted SAD or SDR for each species for multiple datasets."""
-    sites, obs, pred = wk.get_obs_pred_from_file(datasets, data_dir, in_file_name)
-    if not ax:
-        fig = plt.figure(figsize = (3.5, 3.5))
-        ax = plt.subplot(111)
-    wk.plot_obs_pred(obs, pred, radius, 1, ax = ax)
-    ax.set_xlabel('Predicted ' + axis_lab, labelpad = 4, size = 8)
-    ax.set_ylabel('Observed ' + axis_lab, labelpad = 4, size = 8)
-    if title: plt.title(title, fontsize = 10)
-    return ax
+    site = raw_data_site['site'][0]
+    G, S, N, E = get_GSNE(raw_data_site)
+    lambda1, beta, lambda3 = agsne.get_agsne_lambdas(G, S, N, E)
+    beta_ssnt = mete.get_beta(S, N, version = 'untruncated')
+    beta_asne = mete.get_beta(S, N) 
+    d_list = raw_data_site['dbh'] / min(raw_data_site['dbh'])
+    lik_asne, lik_agsne, lik_ssnt_0, lik_ssnt_1 = 0, 0, 0, 0
+    for sp in np.unique(raw_data_site):
+        sp_dbh = d_list[raw_data_site['sp'] == sp]
+        lik_asne += lik_sp_abd_dbh_asne([G, S, N, E], beta_asne, len(sp_dbh), sp_dbh)
+        lik_agsne += lik_sp_abd_dbh_agsne([G, S, N, E], 
+                                          [lambda1, beta, lambda3, agsne.agsne_lambda3_z(lambda1, beta, S) / lambda3], len(sp_dbh), sp_dbh)
+        lik_ssnt_0 += lik_sp_abd_dbh_ssnt([G, S, N, E], beta_ssnt, 'ssnt_0', len(sp_dbh), sp_dbh)
+        lik_ssnt_1 += lik_sp_abd_dbh_ssnt([G, S, N, E], beta_ssnt, 'ssnt_1', len(sp_dbh), sp_dbh)
+    out = open(out_dir + 'lik_sp_abd_dbh_four_models.txt', 'a')
+    print>>out, dataset_name, site, str(lik_asne), str(lik_agsne), str(lik_ssnt_0), str(lik_ssnt_1)
+    out.close()    
 
 def plot_likelihood_comp(lik_1, lik_2, xlabel, ylabel, annotate = True, ax = None):
     """Plot the likelihood two models against each other.
@@ -555,7 +521,7 @@ def bootstrap_SDR(name_site_combo, model, in_dir = './data/', out_dir = './out_f
     
     wk.write_to_file(out_dir + 'SDR_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
             
-def plot_bootstrap(dat_list, Niter = 500, out_file_dir = './out_files/', out_fig_dir = './out_figs/'):
+def plot_bootstrap(dat_list, model, Niter = 500, out_file_dir = './out_files/', out_fig_dir = './out_figs/'):
     """Plot the bootstrap results for the a given model and the three patterns (SAD, ISD, SDR). 
     
     The output is a 3*2 plot (with the last subplot missing) with name bootstrap_model.pdf.
