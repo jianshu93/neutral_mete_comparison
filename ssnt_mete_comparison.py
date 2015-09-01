@@ -60,6 +60,14 @@ def import_likelihood_data(file_name, file_dir = './out_files/'):
                          names = ['study', 'site', 'ASNE', 'AGSNE', 'SSNT_D', 'SSNT_M'], delimiter = ' ')
     return data
 
+def import_bootstrap_file(input_filename, Niter = 100):
+    """The same function as the one in working_functions, except that dype = None."""
+    names_orig = ['dataset', 'site', 'orig']
+    names_sim = ['sample'+str(i) for i in xrange(1, Niter + 1)]
+    names_orig.extend(names_sim)
+    data = np.genfromtxt(input_filename, delimiter = ',', names = names_orig, dtype = None)
+    return data
+
 def clean_data_agsne(raw_data_site, cutoff_genera = 4, cutoff_sp = 9, max_removal = 0.1):
     """Further cleanup of data, removing individuals with undefined genus. 
     
@@ -561,7 +569,7 @@ def plot_bootstrap(dat_list, Niter = 500, out_file_dir = './out_files/', out_fig
         pattern = patterns[int(iplot / 3)]
         stat = stats[iplot % 2]
         boot_dir = out_file_dir + pattern + '_bootstrap_' + model + '_' + stat + '.txt'
-        boot_out = wk.import_bootstrap_file(boot_dir, Niter = Niter)
+        boot_out = import_bootstrap_file(boot_dir, Niter = Niter)
         ax = plt.subplot(3, 2, iplot + 1)
         wk.plot_hist_quan(boot_out, ax = ax)
         plt.xlabel('Quantile', fontsize = 8)
