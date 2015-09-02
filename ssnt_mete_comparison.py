@@ -56,7 +56,7 @@ class ssnt_isd_bounded():
 
 def import_likelihood_data(file_name, file_dir = './out_files/'):
     """Import file with likelihood for METE, SSNT, and transformed SSNT"""
-    data = np.genfromtxt(file_dir + file_name, dtype = 'S15, S15, f15, f15, f15', 
+    data = np.genfromtxt(file_dir + file_name, dtype = 'S15, S15, f15, f15, f15, f15', 
                          names = ['study', 'site', 'ASNE', 'AGSNE', 'SSNT_D', 'SSNT_M'], delimiter = ' ')
     return data
 
@@ -109,7 +109,7 @@ def get_GSNE(raw_data_site):
     E = sum((raw_data_site['dbh'] / min(raw_data_site['dbh'])) ** 2)
     return G, S, N, E
     
-def lik_sp_abd_dbh_ssnt(stat_var, beta, model, n, dbh_list, log = True):
+def lik_sp_abd_dbh_ssnt(stat_var, beta, model, n, dbh_list, d_list_full, log = True):
     """Probability of a species having abundance n and its individuals having dbh [d1, d2, ..., d_n] in SSNT
     
     Inputs:
@@ -117,17 +117,18 @@ def lik_sp_abd_dbh_ssnt(stat_var, beta, model, n, dbh_list, log = True):
     beta - parameter for SAD
     model - 'ssnt_0', or 'ssnt_1'
     n - abundance
-    dbh_list - a list or array of length n with scaled dbh values
+    dbh_list - a list or array of length n with scaled dbh values 
+    d_list_full - a list or array of scaled dbh values for all individuals in community
     """
     G, S, N, E = stat_var
     alpha_model = {'ssnt_0': 1, 'ssnt_1': 2/3}
     alpha = alpha_model[model]
-    par = N / (sum(np.array(dbh_list)**alpha) - N)
+    par = N / (sum(np.array(d_list_full)**alpha) - N)
     p_sad_log = stats.logser.logpmf(n, beta)
     isd = ssnt_isd_bounded(alpha, par)
     p_dbh = [isd.pdf(d) for d in dbh_list]
     if log: return p_sad_log + sum([np.log(p_ind) for p_ind in p_dbh])
-    else: return np.exp(p_sad_log + sum([np.log(p_ind) for p_ind in p_dbh]))
+    else: return np.exp(p_sad_log + sum([np.log(p_ind) for p_ind in dbh_list]))
     
 def lik_sp_abd_dbh_asne(stat_var, beta, n, dbh_list, log = True):
     """Probability of a species having abundance n and its individuals having dbh [d1, d2, ..., d_n] in METE
@@ -158,12 +159,18 @@ def lik_sp_abd_dbh_agsne(stat_var, pars, n, dbh_list, log = True):
     G, S, N, E = stat_var
     lambda1, beta, lambda3, z = pars
     sad = mete_distributions.sad_agsne(stat_var, pars)
-    logp = 0
+    #logp = 0
+    #for d in dbh_list:
+        #t = np.exp(-(lambda1 + (beta - lambda1) * n + lambda3 * n * d ** 2))
+        #logp_dn = np.log(G / S / z * 2 * d) + np.log(t) - 2 * np.log(1 - t) + np.log(1 - (S + 1) * t ** S + S * t ** (S + 1))
+        #logp += logp_dn - np.log(sad.pmf(n))
+    #logp += np.log(sad.pmf(n)) # Convert conditional distribution to joint distribution
+    logsum = 0
     for d in dbh_list:
-        t = np.exp(-(lambda1 + (beta - lambda1) * n + lambda3 * n * d ** 2))
-        logp_dn = np.log(G / S / z * 2 * d) + np.log(t) - 2 * np.log(1 - t) + np.log(1 - (S + 1) * t ** S + S * t ** (S + 1))
-        logp += logp_dn / np.log(sad.pmf(n))
-    logp += np.log(sad.pmf(n)) # Convert conditional distribution to joint distribution
+        logt = -(lambda1 + (beta - lambda3) * n + lambda3 * n * (d ** 2))
+        t = np.exp(logt)
+        logsum += logt - 2 * np.log(1 - t) + np.log(1 - (S + 1) * (t ** S) + S * (t ** (S + 1))) + np.log(2 * d)
+    logp = logsum + n * np.log(G / S / z) - (n - 1) * sad.logpmf(n)
     if log == True: return logp
     else: return np.exp(logp)
     
@@ -336,44 +343,47 @@ def get_lik_sp_abd_dbh_four_models(raw_data_site, dataset_name, out_dir = './out
     beta_asne = mete.get_beta(S, N) 
     d_list = raw_data_site['dbh'] / min(raw_data_site['dbh'])
     lik_asne, lik_agsne, lik_ssnt_0, lik_ssnt_1 = 0, 0, 0, 0
-    for sp in np.unique(raw_data_site):
+    for sp in np.unique(raw_data_site['sp']):
         sp_dbh = d_list[raw_data_site['sp'] == sp]
-        lik_asne += lik_sp_abd_dbh_asne([G, S, N, E], beta_asne, len(sp_dbh), sp_dbh)
+        lik_asne += lik_sp_abd_dbh_asne([G, S, N, E], np.exp(-beta_asne), len(sp_dbh), sp_dbh)
         lik_agsne += lik_sp_abd_dbh_agsne([G, S, N, E], 
                                           [lambda1, beta, lambda3, agsne.agsne_lambda3_z(lambda1, beta, S) / lambda3], len(sp_dbh), sp_dbh)
-        lik_ssnt_0 += lik_sp_abd_dbh_ssnt([G, S, N, E], beta_ssnt, 'ssnt_0', len(sp_dbh), sp_dbh)
-        lik_ssnt_1 += lik_sp_abd_dbh_ssnt([G, S, N, E], beta_ssnt, 'ssnt_1', len(sp_dbh), sp_dbh)
+        lik_ssnt_0 += lik_sp_abd_dbh_ssnt([G, S, N, E], np.exp(-beta_ssnt), 'ssnt_0', len(d_list), sp_dbh, d_list)
+        lik_ssnt_1 += lik_sp_abd_dbh_ssnt([G, S, N, E], np.exp(-beta_ssnt), 'ssnt_1', len(d_list), sp_dbh, d_list)
     out = open(out_dir + 'lik_sp_abd_dbh_four_models.txt', 'a')
     print>>out, dataset_name, site, str(lik_asne), str(lik_agsne), str(lik_ssnt_0), str(lik_ssnt_1)
     out.close()    
 
-def plot_likelihood_comp(lik_1, lik_2, xlabel, ylabel, annotate = True, ax = None):
-    """Plot the likelihood two models against each other.
+def plot_likelihood_comp(lik_dir = './out_files/', out_fig_dir = './out_figs/'):
+    """Plot the likelihood of the other three models against ASNE."""
+    fig = plt.figure(figsize = (3.5, 3.5))
+    ax = plt.subplot(1, 1, 1)
+    lik_for_sites = import_likelihood_data('lik_sp_abd_dbh_four_models.txt', file_dir = lik_dir)
+    lik_asne = lik_for_sites['ASNE']
+    other_model_list = ['AGSNE', 'SSNT_D', 'SSNT_M']
+    col_list = ['b', 'm', '#787878']
+    symbol_list = ['o', 'v', 's']
     
-    lik_1 and lik_2 are two lists/arrays of the same length, each 
-    representing likelihood in each community for one model.
+    lik_list = list(-np.log(-lik_asne))
+        
+    for i, model in enumerate(other_model_list):
+        lik_model = lik_for_sites[model]
+        plt.scatter(-np.log(-lik_asne), -np.log(-lik_model), s = 80, marker = symbol_list[i], facecolors = col_list[i],
+                    edgecolors = 'none')
+        lik_list.extend(list(-np.log(-lik_model)))
     
-    """
-    if not ax:
-        fig = plt.figure(figsize = (3.5, 3.5))
-        ax = plt.subplot(111)
-    min_val, max_val = min(list(lik_1) + list(lik_2)), max(list(lik_1) + list(lik_2))
+    min_lik, max_lik = min(lik_list), max(lik_list)
     if min_val < 0: axis_min = 1.1 * min_val
     else: axis_min = 0.9 * min_val
     if max_val < 0: axis_max = 0.9 * max_val
-    else: axis_max= 1.1 * max_val
-    plt.scatter(lik_1, lik_2, c = '#787878', edgecolors='none')
+    else: axis_max= 1.1 * max_val    
     plt.plot([axis_min, axis_max], [axis_min, axis_max], 'k-')     
     plt.xlim(axis_min, axis_max)
     plt.ylim(axis_min, axis_max)
     ax.tick_params(axis = 'both', which = 'major', labelsize = 6)
-    ax.set_xlabel(xlabel, labelpad = 4, size = 8)
-    ax.set_ylabel(ylabel, labelpad = 4, size = 8)
-    num_above_line = len([i for i in range(len(lik_1)) if lik_1[i] < lik_2[i]])
-    if annotate:
-        plt.annotate('Above the line: ' + str(num_above_line) + '/' + str(len(lik_1)), xy = (0.05, 0.85), 
-                     xycoords = 'axes fraction', fontsize = 7)
-    return ax
+    ax.set_xlabel('ASNE', labelpad = 4, size = 8)
+    ax.set_ylabel('Other models', labelpad = 4, size = 8)        
+    plt.savefig(out_fig_dir + 'lik_comp.png', dpi = 400)
 
 def bootstrap_SAD(name_site_combo, model, in_dir = './data/', out_dir = './out_files/', Niter = 200):
     """A general function of bootstrapping for SAD applying to all four models. 
@@ -577,5 +587,5 @@ def plot_obs_pred_four_models(dat_list, out_file_dir = './out_files/', out_fig_d
             iplot += 1
     plt.subplots_adjust(left = 0.18, wspace = 0.3, hspace = 0.3)
     plt.tight_layout()
-    plt.savefig(out_fig_dir + 'obs_pred_3patterns_4models.pdf', dpi = 400)
+    plt.savefig(out_fig_dir + 'obs_pred_3patterns_4models.png', dpi = 400)
             
