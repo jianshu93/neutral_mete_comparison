@@ -46,6 +46,11 @@ class ssnt_isd_bounded():
     def ppf(self, q):
         return (1 - np.log(1 - q) / self.par) ** (1 / self.alpha)
     
+    def rvs(self, size):
+        rand_list = stats.uniform.rvs(size = size)
+        out = np.array([self.ppf(x) for x in rand_list])
+        return out
+    
     def expected(self):  # Note that this is the expected value of D
         ans = integrate.quad(lambda x: x * self.pdf(x), self.a, np.inf)[0]
         return ans
@@ -57,7 +62,7 @@ class ssnt_isd_bounded():
 def import_likelihood_data(file_name, file_dir = './out_files/'):
     """Import file with likelihood for METE, SSNT, and transformed SSNT"""
     data = np.genfromtxt(file_dir + file_name, dtype = None, 
-                         names = ['study', 'site', 'ASNE', 'AGSNE', 'SSNT_D', 'SSNT_M'], delimiter = ' ')
+                         names = ['study', 'site', 'ASNE', 'AGSNE', 'SSNT_N', 'SSNT_M'], delimiter = ' ')
     return data
 
 def import_bootstrap_file(input_filename, Niter = 100):
@@ -360,7 +365,7 @@ def plot_likelihood_comp(lik_dir = './out_files/', out_fig_dir = './out_figs/'):
     ax = plt.subplot(1, 1, 1)
     lik_for_sites = import_likelihood_data('lik_sp_abd_dbh_four_models.txt', file_dir = lik_dir)
     lik_asne = lik_for_sites['ASNE']
-    other_model_list = ['AGSNE', 'SSNT_D', 'SSNT_M']
+    other_model_list = ['AGSNE', 'SSNT_N', 'SSNT_M']
     col_list = ['b', '#787878', 'r']
     symbol_list = ['o', 's', '*']
     
@@ -468,19 +473,34 @@ def bootstrap_ISD(name_site_combo, model, in_dir = './data/', out_dir = './out_f
     obs = pred_obs[pred_obs['site'] == site]['obs']
     
     out_list_rsquare = [dat_name, site, str(mtools.obs_pred_rsquare(np.log10(obs), np.log10(pred)))]
+    wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare), new_line = False)
     emp_cdf = wk.get_obs_cdf(obs)
     out_list_ks = [dat_name, site, str(max(abs(emp_cdf - np.array([dist.cdf(x) for x in obs]))))]
+    wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_ks.txt', ",".join(str(x) for x in out_list_ks), new_line = False)
     
-    for i in range(Niter):
-        cdf_boot = sorted(stats.uniform.rvs(size = N))
-        if model in ['asne', 'agsne']: 
-            obs_boot = np.array([dist.ppf(x) for x in cdf_boot]) ** 0.5 # ASNE and AGSNE returns values in D^2 instead of D
-        else: obs_boot = np.array([dist.ppf(x) for x in cdf_boot])
-        out_list_rsquare.append(str(mtools.obs_pred_rsquare(np.log10(obs_boot), np.log10(pred))))
-        out_list_ks.append(str(max(abs(emp_cdf - np.array(cdf_boot)))))
+    num_pools = 8  # Assuming that 8 pools are to be created
+    for i in xrange(Niter):
+        obs_boot = []
+        cdf_boot = []
+        while len(sample_i) < N:
+            pool = multiprocessing.Pool(num_pools)
+            out_sample = pool.map(wk.generate_isd_sample, [dist for j in xrange(num_pools)])
+            for combo in out_sample:
+                cdf_sublist, sample_sublist = combo
+                obs_boot.extend(sample_sublist)
+                cdf_boot.extend(cdf_sublist)
+            pool.close()
+            pool.join()
+        if model in ['asne', 'agsne']: obs_boot = np.array(obs_boot[:N]) ** 0.5 # Convert to diameter
+        else: obs_boot = np.array(obs_boot[:N])
+        sample_rsquare = mtools.obs_pred_rsquare(np.log10(obs_boot), np.log10(pred))
+        sample_ks = max(abs(emp_cdf - np.sort(cdf_boot[:N])))
+        
+        wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_rsquare.txt', "".join([',', str(sample_rsquare)]), new_line = False)
+        wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_ks.txt', "".join([',', str(sample_ks)]), new_line = False)
     
-    wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
-    wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_ks.txt', ",".join(str(x) for x in out_list_ks))
+    wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_rsquare.txt', '\t')
+    wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_ks.txt', '\t')
     
 def bootstrap_SDR(name_site_combo, model, in_dir = './data/', out_dir = './out_files/', Niter = 200):
     """A general function of bootstrapping for ISD applying to all four models. 
@@ -526,9 +546,9 @@ def bootstrap_SDR(name_site_combo, model, in_dir = './data/', out_dir = './out_f
     for i in range(Niter):
         if model in ['ssnt_0', 'ssnt_1']: obs_boot = np.array([np.mean((dist.rvs(par[1])) ** 2) for par in par_list]) # Here par[1] is n for each species
         elif model == 'asne': 
-            obs_boot = np.array([np.mean((dist.rvs(par[1], par[1])) ** 2) for par in par_list])
+            obs_boot = np.array([np.mean(np.array(dist.rvs(par[1], par[1])) ** 2) for par in par_list])
         else:
-            obs_boot = np.array([np.mean((dist.rvs(par[0], par[1], par[1])) ** 2) for par in par_list])
+            obs_boot = np.array([np.mean(np.array(dist.rvs(par[0], par[1], par[1])) ** 2) for par in par_list])
         out_list_rsquare.append(str(mtools.obs_pred_rsquare(np.log10(obs_boot), np.log10(pred))))
     
     wk.write_to_file(out_dir + 'SDR_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
@@ -568,7 +588,7 @@ def plot_obs_pred_four_models(dat_list, out_file_dir = './out_files/', out_fig_d
     dat_list_exist = [x for x in dat_list if os.path.isfile(out_file_dir + x + '_obs_pred_rad_asne.csv')]
     model_list = ['asne', 'agsne', 'ssnt_0', 'ssnt_1']
     pattern_list = ['rad', 'isd', 'sdr']
-    model_names = ['ASNE', 'AGSNE', 'SSNT_D', 'SSNT_M']
+    model_names = ['ASNE', 'AGSNE', 'SSNT_N', 'SSNT_M']
     pattern_names = ['SAD', 'ISD', 'SDR']
     xylabel = {'rad': ['Predicted abundance', 'Observed abundance'], 
                'isd': ['Predicted diameter', 'Observed diameter'],
