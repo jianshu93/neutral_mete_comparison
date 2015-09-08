@@ -371,7 +371,6 @@ def plot_likelihood_comp(lik_dir = './out_files/', out_fig_dir = './out_figs/'):
     symbol_list = ['o', 's', '*']
     
     lik_list = list(-np.log(-lik_asne))
-    legend_list = []
     for i, model in enumerate(other_model_list):
         lik_model = lik_for_sites[model]
         plt.scatter(-np.log(-lik_asne), -np.log(-lik_model), s = 20, marker = symbol_list[i], facecolors = col_list[i],
@@ -393,6 +392,51 @@ def plot_likelihood_comp(lik_dir = './out_files/', out_fig_dir = './out_figs/'):
     ax.legend(loc = 2, prop = {'size': 8})
     plt.savefig(out_fig_dir + 'lik_comp.png', dpi = 400)
 
+def plot_r2_comp(name_site_combo, dat_dir = './out_files/', out_fig_dir = './out_figs/'):
+    """Plot r2 of the three patterns separately for each community."""
+    models = ['asne', 'agsne', 'ssnt_0', 'ssnt_1']
+    model_names = ['ASNE', 'AGSNE', 'SSNT_N', 'SSN_M']
+    patterns = ['rad', 'isd', 'sdr']
+    pattern_names = ['SAD', 'ISD', 'SDR']
+    col_list = ['b', '#787878', 'r']
+    symbol_list = ['o', 's', '*']
+    
+    fig = plt.figure(figsize = (10.5, 3.5))
+    for i, pattern in enumerate(patterns):
+        r2_dic = {'asne':[], 'agsne':[], 'ssnt_0':[], 'ssnt_1':[]}
+        r2_list = []
+        for j, model in enumerate(models):
+            for dat_name, site in name_site_combo:
+                pred_obs_model_pattern = wk.import_obs_pred_data(dat_dir + dat_name + '_obs_pred_' + pattern + '_' + model + '.csv')
+                pred_obs_site = pred_obs_model_pattern[pred_obs_model_pattern['site'] == site]
+                r2 = mtools.obs_pred_rsquare(np.log10(pred_obs_site['obs']), np.log10(pred_obs_site['pred']))
+                r2_dic[model].append(r2)
+                r2_list.append(r2)
+        
+        ax = plt.subplot(1, 3, i + 1)
+        for j in range(1, 4):
+            model = models[j]
+            plt.scatter(r2_dic['asne'], r2_dic[model], s = 20, marker = symbol_list[j - 1], facecolors = col_list[j - 1], 
+                        edgecolors = 'none', label = model_names[j])
+        min_val, max_val = min(r2_list), max(r2_list)
+        if min_val < 0: axis_min = 1.1 * min_val
+        else: axis_min = 0.9 * min_val
+        if max_val < 0: axis_max = 0.9 * max_val
+        else: axis_max= 1.1 * max_val    
+        plt.plot([axis_min, axis_max], [axis_min, axis_max], 'k-')     
+        plt.xlim(axis_min, axis_max)
+        plt.ylim(axis_min, axis_max)
+        ax.tick_params(axis = 'both', which = 'major', labelsize = 6)
+        ax.set_xlabel(r'$R^2$ for ASNE', labelpad = 4, size = 8)
+        ax.set_ylabel(r'$R^2$ for other models', labelpad = 4, size = 8)
+        ax.set_title(pattern_names[i], size = 14)
+        if i == 0: ax.legend(loc = 2, prop = {'size': 8})
+        
+    plt.subplots_adjust(left = 0.08, wspace = 0.3)
+    plt.tight_layout()
+    plt.savefig(out_fig_dir + 'r2_comp.png', dpi = 400)
+        
+         
 def bootstrap_SAD(name_site_combo, model, in_dir = './data/', out_dir = './out_files/', Niter = 200):
     """A general function of bootstrapping for SAD applying to all four models. 
     
