@@ -13,6 +13,7 @@ import mete_distributions
 import mete_agsne as agsne
 import macroecotools as mtools
 import macroeco_distributions as md
+import multiprocessing
 
 class ssnt_isd_bounded():
     """The individual-size distribution predicted by SSNT.
@@ -482,7 +483,7 @@ def bootstrap_ISD(name_site_combo, model, in_dir = './data/', out_dir = './out_f
     for i in xrange(Niter):
         obs_boot = []
         cdf_boot = []
-        while len(sample_i) < N:
+        while len(obs_boot) < N:
             pool = multiprocessing.Pool(num_pools)
             out_sample = pool.map(wk.generate_isd_sample, [dist for j in xrange(num_pools)])
             for combo in out_sample:
@@ -527,7 +528,8 @@ def bootstrap_SDR(name_site_combo, model, in_dir = './data/', out_dir = './out_f
     for sp in np.unique(dat_clean['sp']):
         dat_sp = dat_clean[dat_clean['sp'] == sp]
         n = len(dat_sp)
-        m = len(np.unique(dat_sp['genus']))
+        genus_sp = dat_sp['genus'][0]
+        m = len(np.unique(dat_clean[dat_clean['genus'] == genus_sp]['sp']))
         par_list.append([m, n])
         
     pred_obs = wk.import_obs_pred_data(out_dir + dat_name + '_obs_pred_sdr_' + model + '.csv')
@@ -548,7 +550,7 @@ def bootstrap_SDR(name_site_combo, model, in_dir = './data/', out_dir = './out_f
         elif model == 'asne': 
             obs_boot = np.array([np.mean(np.array(dist.rvs(par[1], par[1])) ** 2) for par in par_list])
         else:
-            obs_boot = np.array([np.mean(np.array(dist.rvs(par[0], par[1], par[1])) ** 2) for par in par_list])
+            obs_boot = np.array([np.mean(np.array(dist.rvs(par[1], par[1], par[0])) ** 2) for par in par_list])
         out_list_rsquare.append(str(mtools.obs_pred_rsquare(np.log10(obs_boot), np.log10(pred))))
     
     wk.write_to_file(out_dir + 'SDR_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
