@@ -427,10 +427,10 @@ def plot_r2_comp(name_site_combo, dat_dir = './out_files/', out_fig_dir = './out
         plt.xlim(axis_min, axis_max)
         plt.ylim(axis_min, axis_max)
         ax.tick_params(axis = 'both', which = 'major', labelsize = 6)
-        ax.set_xlabel(r'$R^2$ for ASNE', labelpad = 4, size = 8)
-        ax.set_ylabel(r'$R^2$ for other models', labelpad = 4, size = 8)
-        ax.set_title(pattern_names[i], size = 14)
-        if i == 0: ax.legend(loc = 2, prop = {'size': 8})
+        ax.set_xlabel(r'$R^2$ of ASNE', labelpad = 4, size = 10)
+        ax.set_ylabel(r'$R^2$ of the other models', labelpad = 4, size = 10)
+        ax.set_title(pattern_names[i], size = 16)
+        if i == 0: ax.legend(loc = 2, prop = {'size': 10})
         
     plt.subplots_adjust(left = 0.08, wspace = 0.3)
     plt.tight_layout()
@@ -536,8 +536,8 @@ def bootstrap_ISD(name_site_combo, model, in_dir = './data/', out_dir = './out_f
                 cdf_boot.extend(cdf_sublist)
             pool.close()
             pool.join()
-        if model in ['asne', 'agsne']: obs_boot = np.array(obs_boot[:N]) ** 0.5 # Convert to diameter
-        else: obs_boot = np.array(obs_boot[:N])
+        if model in ['asne', 'agsne']: obs_boot = np.sort(obs_boot[:N]) ** 0.5 # Convert to diameter
+        else: obs_boot = np.sort(obs_boot[:N])
         sample_rsquare = mtools.obs_pred_rsquare(np.log10(obs_boot), np.log10(pred))
         sample_ks = max(abs(emp_cdf - np.sort(cdf_boot[:N])))
         
@@ -651,9 +651,9 @@ def plot_obs_pred_four_models(dat_list, out_file_dir = './out_files/', out_fig_d
             ax.set_xlabel(xlab, labelpad = 4, size = 8)
             ax.set_ylabel(ylab, labelpad = 4, size = 8)
             if iplot in [1, 2, 3]:  ax.set_title(pattern_names[iplot - 1], size = 14,y = 1.1)
-            if iplot in [1, 4, 7, 10]: ax.set_ylabel(model_names[int(iplot / 3)], labelpad = 10, size = 14, rotation = 0)
+            if iplot in [1, 4, 7, 10]: plt.figtext(0.01, 0.85 - int(iplot / 3) * 0.24, model_names[int(iplot / 3)], 
+                                                   size = 14, rotation = 'horizontal')
             iplot += 1
-    plt.subplots_adjust(left = 0.18, wspace = 0.3, hspace = 0.3)
-    plt.tight_layout()
+    plt.subplots_adjust(left = 0.17, top = 0.95, bottom = 0.05, right = 0.95, wspace = 0.3, hspace = 0.3)
     plt.savefig(out_fig_dir + 'obs_pred_3patterns_4models.png', dpi = 400)
             
