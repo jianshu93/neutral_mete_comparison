@@ -74,6 +74,21 @@ def import_bootstrap_file(input_filename, Niter = 100):
     data = np.genfromtxt(input_filename, delimiter = ',', names = names_orig, dtype = None)
     return data
 
+def import_bootstrap_file_incomp(input_filename, Niter = 100):
+    """The same as import_bootstrap_file, but accounts for instances where the number of columns are not constant."""
+    with open(input_filename) as f:
+        content = f.readlines()    
+    names_orig = ['dataset', 'site', 'orig']
+    names_sim = ['sample' + str(i) for i in xrange(1, Niter + 1)]
+    names = names_orig + names_sim
+    data_type = ['S15', 'S15'] + ['f8'] * (Niter + 1)
+    out_array = np.zeros(len(content), dtype = {'names': names, 'formats': data_type})
+    for i, row in enumerate(content):
+        row_split = row.strip(' ').split(',')
+        row_split = [row_split[j] if j < 2 else float(row_split[j]) for j in range(len(row_split))]
+        out_array[i] = tuple(row_split[:(Niter + 3)])
+    return out_array
+
 def clean_data_agsne(raw_data_site, cutoff_genera = 4, cutoff_sp = 9, max_removal = 0.1):
     """Further cleanup of data, removing individuals with undefined genus. 
     
@@ -434,8 +449,7 @@ def plot_r2_comp(name_site_combo, dat_dir = './out_files/', out_fig_dir = './out
         
     plt.subplots_adjust(left = 0.08, wspace = 0.3)
     plt.tight_layout()
-    plt.savefig(out_fig_dir + 'r2_comp.png', dpi = 400)
-        
+    plt.savefig(out_fig_dir + 'r2_comp.png', dpi = 400)  
          
 def bootstrap_SAD(name_site_combo, model, in_dir = './data/', out_dir = './out_files/', Niter = 200):
     """A general function of bootstrapping for SAD applying to all four models. 
@@ -470,18 +484,15 @@ def bootstrap_SAD(name_site_combo, model, in_dir = './data/', out_dir = './out_f
     obs = pred_obs[pred_obs['site'] == site]['obs'][::-1]
     
     out_list_rsquare = [dat_name, site, str(mtools.obs_pred_rsquare(np.log10(obs), np.log10(pred)))]
-    emp_cdf = wk.get_obs_cdf(obs)
+    emp_cdf = mtools.get_emp_cdf(obs)
     out_list_ks = [dat_name, site, str(max(abs(emp_cdf - np.array([dist.cdf(x) for x in obs]))))]
     
     for i in range(Niter):
-        if model in ['agsne', 'asne']:
-            obs_boot = np.array(sorted(dist.rvs(S)))
-            cdf_boot = np.array([dist.cdf(x) for x in obs_boot])
-        else:
-            cdf_boot = sorted(stats.uniform.rvs(size = S))
-            obs_boot = np.array([dist.ppf(x) for x in cdf_boot])
+        obs_boot = np.array(sorted(dist.rvs(S)))
+        cdf_boot = np.array([dist.cdf(x) for x in obs_boot])
+        emp_cdf_boot = mtools.get_emp_cdf(obs_boot)
         out_list_rsquare.append(str(mtools.obs_pred_rsquare(np.log10(obs_boot), np.log10(pred))))
-        out_list_ks.append(str(max(abs(emp_cdf - np.array(cdf_boot)))))
+        out_list_ks.append(str(max(abs(emp_cdf_boot - np.array(cdf_boot)))))
     
     wk.write_to_file(out_dir + 'SAD_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
     wk.write_to_file(out_dir + 'SAD_bootstrap_' + model + '_ks.txt', ",".join(str(x) for x in out_list_ks))
@@ -519,7 +530,7 @@ def bootstrap_ISD(name_site_combo, model, in_dir = './data/', out_dir = './out_f
     
     out_list_rsquare = [dat_name, site, str(mtools.obs_pred_rsquare(np.log10(obs), np.log10(pred)))]
     wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare), new_line = False)
-    emp_cdf = wk.get_obs_cdf(obs)
+    emp_cdf = mtools.get_emp_cdf(obs)
     out_list_ks = [dat_name, site, str(max(abs(emp_cdf - np.array([dist.cdf(x) for x in obs]))))]
     wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_ks.txt', ",".join(str(x) for x in out_list_ks), new_line = False)
     
@@ -592,9 +603,9 @@ def bootstrap_SDR(name_site_combo, model, in_dir = './data/', out_dir = './out_f
     for i in range(Niter):
         if model in ['ssnt_0', 'ssnt_1']: obs_boot = np.array([np.mean((dist.rvs(par[1])) ** 2) for par in par_list]) # Here par[1] is n for each species
         elif model == 'asne': 
-            obs_boot = np.array([np.mean(np.array(dist.rvs(par[1], par[1])) ** 2) for par in par_list])
+            obs_boot = np.array([np.mean(np.array(dist.rvs(par[1], par[1]))) for par in par_list])
         else:
-            obs_boot = np.array([np.mean(np.array(dist.rvs(par[1], par[1], par[0])) ** 2) for par in par_list])
+            obs_boot = np.array([np.mean(np.array(dist.rvs(par[1], par[1], par[0]))) for par in par_list])
         out_list_rsquare.append(str(mtools.obs_pred_rsquare(np.log10(obs_boot), np.log10(pred))))
     
     wk.write_to_file(out_dir + 'SDR_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
