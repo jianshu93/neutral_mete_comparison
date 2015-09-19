@@ -483,7 +483,7 @@ def bootstrap_SAD(name_site_combo, model, in_dir = './data/', out_dir = './out_f
     pred = pred_obs[pred_obs['site'] == site]['pred'][::-1]
     obs = pred_obs[pred_obs['site'] == site]['obs'][::-1]
     
-    #out_list_rsquare = [dat_name, site, str(mtools.obs_pred_rsquare(np.log10(obs), np.log10(pred)))]
+    out_list_rsquare = [dat_name, site, str(mtools.obs_pred_rsquare(np.log10(obs), np.log10(pred)))]
     emp_cdf = mtools.get_emp_cdf(obs)
     out_list_ks = [dat_name, site, str(max(abs(emp_cdf - np.array([dist.cdf(x) for x in obs]))))]
     
@@ -491,10 +491,10 @@ def bootstrap_SAD(name_site_combo, model, in_dir = './data/', out_dir = './out_f
         obs_boot = np.array(sorted(dist.rvs(S)))
         cdf_boot = np.array([dist.cdf(x) for x in obs_boot])
         emp_cdf_boot = mtools.get_emp_cdf(obs_boot)
-        #out_list_rsquare.append(str(mtools.obs_pred_rsquare(np.log10(obs_boot), np.log10(pred))))
+        out_list_rsquare.append(str(mtools.obs_pred_rsquare(np.log10(obs_boot), np.log10(pred))))
         out_list_ks.append(str(max(abs(emp_cdf_boot - np.array(cdf_boot)))))
     
-    #wk.write_to_file(out_dir + 'SAD_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
+    wk.write_to_file(out_dir + 'SAD_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare))
     wk.write_to_file(out_dir + 'SAD_bootstrap_' + model + '_ks.txt', ",".join(str(x) for x in out_list_ks))
 
 def bootstrap_ISD(name_site_combo, model, in_dir = './data/', out_dir = './out_files/', Niter = 200):
@@ -528,37 +528,35 @@ def bootstrap_ISD(name_site_combo, model, in_dir = './data/', out_dir = './out_f
     pred = pred_obs[pred_obs['site'] == site]['pred']
     obs = pred_obs[pred_obs['site'] == site]['obs']
     
-    #out_list_rsquare = [dat_name, site, str(mtools.obs_pred_rsquare(np.log10(obs), np.log10(pred)))]
-    #wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare), new_line = False)
+    out_list_rsquare = [dat_name, site, str(mtools.obs_pred_rsquare(np.log10(obs), np.log10(pred)))]
+    wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_rsquare.txt', ",".join(str(x) for x in out_list_rsquare), new_line = False)
     emp_cdf = mtools.get_emp_cdf(obs)
     out_list_ks = [dat_name, site, str(max(abs(emp_cdf - np.array([dist.cdf(x) for x in obs]))))]
-    #wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_ks.txt', ",".join(str(x) for x in out_list_ks), new_line = False)
+    wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_ks.txt', ",".join(str(x) for x in out_list_ks), new_line = False)
     
-    #num_pools = 8  # Assuming that 8 pools are to be created
+    num_pools = 8  # Assuming that 8 pools are to be created
     for i in xrange(Niter):
-        cdf_boot = stats.uniform.rvs(size = N)
-        out_list_ks.append(max(abs(emp_cdf - np.sort(cdf_boot))))
-        #obs_boot = []
-        #cdf_boot = []
-        #while len(obs_boot) < N:
-            #pool = multiprocessing.Pool(num_pools)
-            #out_sample = pool.map(wk.generate_isd_sample, [dist for j in xrange(num_pools)])
-            #for combo in out_sample:
-                #cdf_sublist, sample_sublist = combo
-                #obs_boot.extend(sample_sublist)
-                #cdf_boot.extend(cdf_sublist)
-            #pool.close()
-            #pool.join()
-        #if model in ['asne', 'agsne']: obs_boot = np.sort(obs_boot[:N]) ** 0.5 # Convert to diameter
-        #else: obs_boot = np.sort(obs_boot[:N])
-        #sample_rsquare = mtools.obs_pred_rsquare(np.log10(obs_boot), np.log10(pred))
-        #sample_ks = max(abs(emp_cdf - np.sort(cdf_boot[:N])))
+        obs_boot = []
+        cdf_boot = []
+        while len(obs_boot) < N:
+            pool = multiprocessing.Pool(num_pools)
+            out_sample = pool.map(wk.generate_isd_sample, [dist for j in xrange(num_pools)])
+            for combo in out_sample:
+                cdf_sublist, sample_sublist = combo
+                obs_boot.extend(sample_sublist)
+                cdf_boot.extend(cdf_sublist)
+            pool.close()
+            pool.join()
+        if model in ['asne', 'agsne']: obs_boot = np.sort(obs_boot[:N]) ** 0.5 # Convert to diameter
+        else: obs_boot = np.sort(obs_boot[:N])
+        sample_rsquare = mtools.obs_pred_rsquare(np.log10(obs_boot), np.log10(pred))
+        sample_ks = max(abs(emp_cdf - np.sort(cdf_boot[:N])))
         
-        #wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_rsquare.txt', "".join([',', str(sample_rsquare)]), new_line = False)
-        #wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_ks.txt', "".join([',', str(sample_ks)]), new_line = False)
+        wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_rsquare.txt', "".join([',', str(sample_rsquare)]), new_line = False)
+        wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_ks.txt', "".join([',', str(sample_ks)]), new_line = False)
     
-    #wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_rsquare.txt', '\t')
-    #wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_ks.txt', '\t')
+    wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_rsquare.txt', '\t')
+    wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_ks.txt', '\t')
     wk.write_to_file(out_dir + 'ISD_bootstrap_' + model + '_ks.txt', ",".join(str(x) for x in out_list_ks))
     
 def bootstrap_SDR(name_site_combo, model, in_dir = './data/', out_dir = './out_files/', Niter = 200):
@@ -660,7 +658,7 @@ def plot_bootstrap(model, Niter = 500, out_file_dir = './out_files/', out_fig_di
                 ax = plt.subplot(3, 2, iplot)
                 if stat == 'ks': plot_hist_quan(boot_out, dat_type = 'ks', ax = ax)
                 else: plot_hist_quan(boot_out, ax = ax)
-                plt.xlabel('Quantile among bootstrap samples', fontsize = 8)
+                plt.xlabel('Samples closer to prediction', fontsize = 8)
                 plt.ylabel('Number of communities', fontsize = 8)
                 if iplot in [1, 2]: ax.set_title(titles[iplot - 1], size = 14,y = 1.1)
                 if iplot in [1, 3, 5]: plt.figtext(0.01, 0.8 - int(np.floor(iplot / 2)) * 0.32, patterns[int(np.floor(iplot / 2))], 
@@ -694,7 +692,7 @@ def plot_obs_pred_four_models(dat_list, out_file_dir = './out_files/', out_fig_d
             xlab, ylab = xylabel[pattern]
             ax.set_xlabel(xlab, labelpad = 4, size = 8)
             ax.set_ylabel(ylab, labelpad = 4, size = 8)
-            if iplot in [1, 2, 3]:  ax.set_title(pattern_names[iplot - 1], size = 14,y = 1.1)
+            if iplot in [1, 2, 3]:  ax.set_title(pattern_names[iplot - 1], size = 14,y = 1.03)
             if iplot in [1, 4, 7, 10]: plt.figtext(0.01, 0.85 - int(iplot / 3) * 0.24, model_names[int(iplot / 3)], 
                                                    size = 14, rotation = 'horizontal')
             iplot += 1
