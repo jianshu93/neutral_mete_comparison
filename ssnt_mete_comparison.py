@@ -410,7 +410,7 @@ def plot_likelihood_comp(lik_dir = './out_files/', out_fig_dir = './out_figs/'):
 def plot_r2_comp(name_site_combo, dat_dir = './out_files/', out_fig_dir = './out_figs/'):
     """Plot r2 of the three patterns separately for each community."""
     models = ['asne', 'agsne', 'ssnt_0', 'ssnt_1']
-    model_names = ['ASNE', 'AGSNE', 'SSNT_N', 'SSN_M']
+    model_names = ['ASNE', 'AGSNE', 'SSNT_N', 'SSNT_M']
     patterns = ['rad', 'isd', 'sdr']
     pattern_names = ['SAD', 'ISD', 'SDR']
     col_list = ['b', '#787878', 'r']
